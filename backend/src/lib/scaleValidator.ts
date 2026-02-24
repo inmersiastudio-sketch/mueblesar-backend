@@ -1,4 +1,5 @@
 import { NodeIO, type Document } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -20,8 +21,24 @@ export type ScaleValidationResult = {
 
 async function loadBuffer(file: string): Promise<Buffer> {
   if (file.startsWith("http://") || file.startsWith("https://")) {
-    const res = await fetch(file);
-    if (!res.ok) throw new Error(`No se pudo descargar ${file}: ${res.status} ${res.statusText}`);
+    // For Cloudinary raw files, sometimes the URL doesn't include .glb extension
+    // Try the URL as-is first, then with .glb appended if it fails
+    let url = file;
+    console.log(`[scaleValidator] Attempting to download: ${url}`);
+    let res = await fetch(url);
+    
+    // If first attempt fails and URL doesn't end with .glb, try appending .glb
+    if (!res.ok && !url.toLowerCase().includes('.glb')) {
+      url = file + '.glb';
+      console.log(`[scaleValidator] First attempt failed, trying with .glb: ${url}`);
+      res = await fetch(url);
+    }
+    
+    if (!res.ok) {
+      throw new Error(`No se pudo descargar ${file}: ${res.status} ${res.statusText}`);
+    }
+    
+    console.log(`[scaleValidator] Successfully downloaded GLB from ${url}`);
     const arr = new Uint8Array(await res.arrayBuffer());
     return Buffer.from(arr);
   }
@@ -62,7 +79,8 @@ export async function validateGlbScale(input: ScaleValidationInput): Promise<Sca
   if (!file) throw new Error("Falta file");
   if (!width && !depth && !height) throw new Error("Falta al menos una dimensión esperada");
 
-  const io = new NodeIO();
+  // Register all extensions including KHR_mesh_quantization
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
   const buffer = await loadBuffer(file);
   const doc = await io.readBinary(buffer);
   const { min, max } = computeBBox(doc);

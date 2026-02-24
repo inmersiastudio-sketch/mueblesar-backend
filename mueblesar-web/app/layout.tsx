@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Roboto_Mono } from "next/font/google";
-import { Footer } from "./components/layout/Footer";
-import { Header } from "./components/layout/Header";
-import { ARAnalyticsBridge } from "./components/analytics/ARAnalyticsBridge";
 import { ClientProviders } from "./components/providers/ClientProviders";
-import { FloatingCartButton } from "./components/cart/FloatingCartButton";
+import { PublicWrapper } from "./components/layout/PublicWrapper";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,8 +17,8 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MueblesAR",
-  description: "Catálogo de mueblerías de Córdoba",
+  title: "Amobly",
+  description: "Catálogo de mueblerías de Córdoba con realidad aumentada",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,11 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className={`${inter.variable} ${robotoMono.variable} bg-slate-50 text-slate-900 antialiased`}>
         <ClientProviders>
-          <Header />
-          <ARAnalyticsBridge />
-          <main>{children}</main>
-          <Footer />
-          <FloatingCartButton />
+          <PublicWrapper>{children}</PublicWrapper>
         </ClientProviders>
       </body>
     </html>

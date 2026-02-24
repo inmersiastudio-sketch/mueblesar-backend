@@ -1,0 +1,9 @@
+﻿src/lib/cloudinary.ts(62,7): error TS2345: Argument of type '{ overwrite: unknown; public_id: string; folder: string; resource_type: "raw"; }' is not assignable to parameter of type 'UploadApiOptions'.
+  Types of property 'overwrite' are incompatible.
+    Type 'unknown' is not assignable to type 'boolean'.
+src/lib/glb-compressor.ts(48,14): error TS2353: Object literal may only specify known properties, and 'tolerance' does not exist in type 'WeldOptions'.
+src/lib/glb-compressor.ts(54,18): error TS2353: Object literal may only specify known properties, and 'size' does not exist in type 'ResampleOptions'.
+src/lib/redis.ts(9,16): error TS2351: This expression is not constructable.
+  Type 'typeof import("C:/Users/Inmersia_Studio/ProyectoSalvaVidas/backend/node_modules/ioredis/built/index")' has no construct signatures.
+src/server.ts(56,11): error TS2349: This expression is not callable.
+  Type 'typeof import("C:/Users/Inmersia_Studio/ProyectoSalvaVidas/backend/node_modules/pino-http/index")' has no call signatures.

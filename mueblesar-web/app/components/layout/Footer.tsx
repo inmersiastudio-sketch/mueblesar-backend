@@ -6,7 +6,7 @@ export function Footer() {
     <footer className="border-t border-slate-100 bg-white py-8">
       <Container>
         <div className="flex flex-col gap-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          <div className="font-semibold text-slate-800">MueblesAR</div>
+          <div className="font-semibold text-slate-800">Amobly</div>
           <nav className="flex flex-wrap gap-4">
             <Link href="/productos" className="hover:text-primary">
               Productos

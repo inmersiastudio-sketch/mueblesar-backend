@@ -35,9 +35,10 @@ export type Product = {
   featured?: boolean;
   widthCm?: number;
   heightCm?: number;
-  depthCm?: number;
-  material?: string;
-  color?: string;
+  depthCm?: number;  weightKg?: number;  material?: string;
+  color?: string;              // CSS color name / hex or comma-separated list
+  inStock?: boolean;           // availability flag
+  stockQty?: number;           // quantity remaining, if known
 };
 
 type ProductsResponse = {

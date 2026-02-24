@@ -29,6 +29,15 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001";
 
+  const isNetworkError = (err: unknown) => {
+    if (err instanceof TypeError && err.message === "Failed to fetch") return true;
+    if (err instanceof Error && /fetch|network|connection|reset|refused/i.test(err.message)) return true;
+    return false;
+  };
+
+  const connectionErrorMessage =
+    "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución (puerto 3001) y recarga la página.";
+
   // Poll job status when in progress
   useEffect(() => {
     if (!job || job.status === "SUCCEEDED" || job.status === "FAILED") {
@@ -42,7 +51,17 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         });
 
         if (!res.ok) {
-          throw new Error("Failed to check status");
+          let message = "Error al verificar el estado";
+          try {
+            const errData = await res.json();
+            if (errData.error && typeof errData.error === "string") message = errData.error;
+          } catch {
+            // ignore
+          }
+          clearInterval(interval);
+          setJob((prev) => (prev ? { ...prev, status: "FAILED", error: message } : null));
+          setError(message);
+          return;
         }
 
         const data = await res.json();
@@ -55,10 +74,19 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
           }
         } else if (data.status === "FAILED") {
           clearInterval(interval);
-          setError(data.error || "Generation failed");
+          setError(data.error || "La generación falló");
         }
       } catch (err) {
         console.error("Status check error:", err);
+        clearInterval(interval);
+        if (isNetworkError(err)) {
+          setError(connectionErrorMessage);
+          setJob(null);
+        } else {
+          const message = err instanceof Error ? err.message : "Error al verificar el estado";
+          setError(message);
+          setJob((prev) => (prev ? { ...prev, status: "FAILED", error: message } : null));
+        }
       }
     }, 10000); // Poll every 10 seconds
 
@@ -67,7 +95,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
 
   const handleGenerate = async () => {
     if (!imageUrl) {
-      setError("Please provide an image URL");
+      setError("Indica la URL de la imagen");
       return;
     }
 
@@ -87,8 +115,14 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to start generation");
+        let msg = "Error al iniciar la generación";
+        try {
+          const errorData = await res.json();
+          if (errorData.error && typeof errorData.error === "string") msg = errorData.error;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
       }
 
       const data = await res.json();
@@ -99,7 +133,11 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         progress: 0,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (isNetworkError(err)) {
+        setError(connectionErrorMessage);
+      } else {
+        setError(err instanceof Error ? err.message : "Error desconocido");
+      }
     } finally {
       setLoading(false);
     }
@@ -162,7 +200,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
                   clipRule="evenodd"
                 />
               </svg>
-              <span className="font-medium text-red-900">Generation failed</span>
+              <span className="font-medium text-red-900">Generación fallida</span>
             </div>
             {job.error && <p className="text-sm text-red-700">{job.error}</p>}
           </div>

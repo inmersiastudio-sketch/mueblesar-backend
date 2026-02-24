@@ -15,7 +15,7 @@ export function Header() {
       <Container>
         <div className="flex h-16 items-center justify-between gap-6">
           <Link href="/" className="text-lg font-semibold text-slate-900 flex-shrink-0">
-            MueblesAR
+            Amobly
           </Link>
           <div className="hidden sm:flex flex-1 max-w-md mx-4">
             <SearchBar />

@@ -61,39 +61,52 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
     const lower = arUrl.toLowerCase();
     // Check if URL contains .glb (even with query params like ?Expires=...)
     const glb = lower.includes(".glb") ? arUrl : undefined;
-    
-    // Proxied GLB URL ONLY for web browser (to avoid CORS)
-    const proxiedGlb = glb && glb.includes("meshy.ai") 
+
+    // Proxy Meshy URLs through backend to avoid CORS (Meshy blocks direct browser requests)
+    // Cloudinary URLs are accessed directly (no CORS issue, stable)
+    const isMeshy = glb?.includes("meshy.ai");
+    const proxiedGlb = glb && isMeshy
       ? `${apiBase}/api/proxy/glb?url=${encodeURIComponent(glb)}`
       : glb;
-    
-    console.log('[ARPreview] URL computation:', { 
-      arUrl, 
-      glb, 
-      proxiedGlb, 
+
+    console.log('[ARPreview] URL computation:', {
+      arUrl,
+      glb,
+      proxiedGlb,
       apiBase,
-      isMeshy: glb?.includes("meshy.ai") 
+      isMeshy
     });
-    
+
     // iOS USDZ conversion (Scene Viewer doesn't work on iOS anyway)
     const iosCandidate = glb ? arUrl.replace(/\.glb(\?.*)?$/, ".usdz$1") : arUrl.endsWith(".usdz") ? arUrl : undefined;
-    
-    // For Scene Viewer: use DIRECT Meshy URL (Google servers can access it, no CORS)
-    const urlForMobile = glb ?? arUrl; // Direct URL, no proxy
+
+    // For Scene Viewer: use DIRECT URL (Google servers can access without CORS)
+    const urlForMobile = glb ?? arUrl;
     const intent = glb
       ? `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(urlForMobile)}&mode=ar_preferred&title=${encodeURIComponent(productName)}#Intent;scheme=https;package=com.google.ar.core;end;`
       : undefined;
     const httpsViewer = glb
       ? `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(urlForMobile)}&mode=ar_preferred&title=${encodeURIComponent(productName)}`
       : undefined;
-    return { 
-      glbUrl: proxiedGlb ?? arUrl,           // For web model-viewer (proxied)
+    return {
+      glbUrl: proxiedGlb ?? arUrl,           // For web model-viewer (proxied if Meshy)
       glbUrlOriginal: urlForMobile,          // For QR/mobile (direct URL)
-      iosUrl: iosCandidate, 
-      androidIntent: intent ?? arUrl, 
-      sceneViewerHttps: httpsViewer ?? arUrl 
+      iosUrl: iosCandidate,
+      androidIntent: intent ?? arUrl,
+      sceneViewerHttps: httpsViewer ?? arUrl
     };
   }, [arUrl, productName, apiBase]);
+
+  const dimensionsStr = useMemo(() => {
+    if (!widthCm && !heightCm && !depthCm) return undefined;
+    // model-viewer expects dimensions in meters, in order: width, height, depth
+    // It seems there's a convention mismatch: model-viewer needs Y to be height.
+    // Our DB stores depthCm as Z, which is correct for model-viewer's depth.
+    const w = (widthCm ?? 0) / 100;
+    const h = (heightCm ?? 0) / 100;
+    const d = (depthCm ?? 0) / 100;
+    return `${w}m ${h}m ${d}m`;
+  }, [widthCm, heightCm, depthCm]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -193,7 +206,7 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
     resetMeasure();
   }, [open]);
 
-  const resetMeasure = () => {
+  function resetMeasure() {
     setMeasurePoints({});
     setMeasureDistance(null);
     setMeasureMessage(null);
@@ -201,7 +214,7 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
     pendingMeasureRef.current = false;
   };
 
-  const cleanupXRSession = () => {
+  function cleanupXRSession() {
     if (xrSessionRef.current && selectHandlerRef.current) {
       xrSessionRef.current.removeEventListener("select", selectHandlerRef.current);
     }
@@ -222,7 +235,7 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
     setIsMeasuring(false);
   };
 
-  const setupHitTest = async (session: any) => {
+  async function setupHitTest(session: any) {
     if (!session?.requestReferenceSpace || !session?.requestHitTestSource) {
       setMeasureError("Este dispositivo no soporta medición AR");
       track("ar_measure_fail", { product: productName, reason: "no-hit-test" });
@@ -380,6 +393,8 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
                   poster=""
                   exposure="1"
                   shadow-intensity="1"
+                  show-dimensions={!!dimensionsStr}
+                  data-dimensions={dimensionsStr}
                   onLoad={() => track("ar_modal_load", { product: productName })}
                   onArStatus={handleArStatus}
                 />

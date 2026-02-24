@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { FavoriteButton } from "../favorites/FavoriteButton";
 import { AddToCartButton } from "../cart/AddToCartButton";
@@ -16,8 +17,11 @@ export type ProductCardData = {
   style?: string;
   imageUrl?: string;
   arUrl?: string;
-  images?: { url: string }[];
+  images?: { url: string; type?: string }[]; // include type for color grouping
   store?: { name?: string; slug?: string };
+  color?: string;             // same format as API
+  inStock?: boolean;          // for showing availability badge
+  stockQty?: number;
 };
 
 type Props = {
@@ -27,6 +31,16 @@ type Props = {
 export function ProductCard({ product }: Props) {
   const image = product.images?.[0]?.url ?? product.imageUrl;
   const price = typeof product.price === "string" ? Number(product.price) : product.price;
+  const swatchColors = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    if (product.color) {
+      product.color.split(",").forEach((c) => set.add(c.trim()));
+    }
+    product.images?.forEach((i) => {
+      if (i.type) set.add(i.type);
+    });
+    return Array.from(set);
+  }, [product.color, product.images]);
 
   const track = (name: string, props?: Record<string, unknown>) => {
     try {
@@ -94,7 +108,22 @@ export function ProductCard({ product }: Props) {
         {product.store?.name && <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">{product.store.name}</span>}
         {product.arUrl && <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">AR disponible</span>}
       </div>
-      <h3 className="text-lg font-semibold text-slate-900">{product.name}</h3>
+      <h3 className="text-lg font-semibold text-slate-900 flex items-center justify-between">
+        {product.name}
+        {product.inStock === false && <span className="ml-2 text-xs font-semibold text-red-600">Agotado</span>}
+      </h3>
+      {swatchColors.length > 0 && (
+        <div className="flex items-center gap-1 mt-1">
+          {swatchColors.map((c: string, i: number) => (
+            <span
+              key={i}
+              className="inline-block h-4 w-4 rounded-full border"
+              style={{ backgroundColor: c }}
+              title={c}
+            />
+          ))}
+        </div>
+      )}
       <p className="line-clamp-2 text-sm text-slate-700">{product.description}</p>
       <div className="flex items-center justify-between pt-2 text-base font-semibold text-primary">
         ${price?.toLocaleString("es-AR")}

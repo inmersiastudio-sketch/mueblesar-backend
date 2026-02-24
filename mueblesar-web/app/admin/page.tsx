@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Container } from "../components/layout/Container";
 import { AI3DGenerator } from "../components/admin/AI3DGenerator";
+import { ARPreview } from "../components/products/ARPreview";
+import { fetchProducts } from "../lib/api";
 
 type Product = {
   id: number;
@@ -22,9 +24,12 @@ type Product = {
   widthCm?: number | null;
   depthCm?: number | null;
   heightCm?: number | null;
+  color?: string | null;
+  inStock?: boolean | null;
   stockQty?: number | null;
   featured?: boolean | null;
   store?: { name?: string | null };
+  images?: { url: string; type?: string }[]; // include gallery images with color/type
 };
 
 type ValidationResult = {
@@ -75,6 +80,7 @@ type FormState = {
   category: string;
   room: string;
   style: string;
+  color: string;
   featured: boolean;
   price: string;
   arUrl: string;
@@ -82,6 +88,9 @@ type FormState = {
   depthCm: string;
   heightCm: string;
   imageUrl: string;
+  images: { url: string; type?: string }[]; // extra gallery with types/colors
+  inStock: boolean;
+  stockQty: string;
 };
 
 const emptyForm: FormState = {
@@ -93,6 +102,7 @@ const emptyForm: FormState = {
   category: "",
   room: "",
   style: "",
+  color: "",
   featured: false,
   price: "",
   arUrl: "",
@@ -100,6 +110,9 @@ const emptyForm: FormState = {
   depthCm: "",
   heightCm: "",
   imageUrl: "",
+  images: [],
+  inStock: true,
+  stockQty: "",
 };
 
 const isValidUrl = (value: string) => {
@@ -110,6 +123,15 @@ const isValidUrl = (value: string) => {
   } catch {
     return false;
   }
+};
+
+const slugify = (input: string) => {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 };
 
 export default function AdminPage() {
@@ -129,9 +151,215 @@ export default function AdminPage() {
   const [formValidation, setFormValidation] = useState<ValidationResult | { error: string } | null>(null);
   const [formValidating, setFormValidating] = useState(false);
   const [stats, setStats] = useState<StatsSummary | null>(null);
+
+  // taxonomy management
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  const [extraRooms, setExtraRooms] = useState<string[]>([]);
+  const [extraStyles, setExtraStyles] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState("");
+  const [newRoom, setNewRoom] = useState("");
+  const [newStyle, setNewStyle] = useState("");
   const [statsLoading, setStatsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(""); // texto para filtrar productos
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterRoom, setFilterRoom] = useState("");
+  const [filterFeatured, setFilterFeatured] = useState<"" | "yes" | "no">("");
+  const [filterInStock, setFilterInStock] = useState<"" | "yes" | "no">("");
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
+  const [previewRows, setPreviewRows] = useState<string[][]>([]);
+  const [pendingImportRows, setPendingImportRows] = useState<string[][]>([]);
+  const [showConfirmImport, setShowConfirmImport] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logProductId, setLogProductId] = useState<number | null>(null);
+  const [logEntries, setLogEntries] = useState<any[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logActionFilter, setLogActionFilter] = useState("");
+  const [logFromFilter, setLogFromFilter] = useState("");
+  const [logToFilter, setLogToFilter] = useState("");
+
+  const exportCsv = () => {
+    const items = sortedProducts; // export sorted/filtered list
+    if (!items.length) return;
+    const fields = [
+      "id",
+      "storeId",
+      "name",
+      "slug",
+      "price",
+      "category",
+      "room",
+      "style",
+      "color",
+      "widthCm",
+      "depthCm",
+      "heightCm",
+      "arUrl",
+      "imageUrl",
+      "inStock",
+      "stockQty",
+    ];
+    const header = fields.join(",");
+    const rows = items.map((p) =>
+      fields
+        .map((f) => {
+          const v = (p as any)[f];
+          if (v == null) return "";
+          return String(v).replace(/"/g, '""');
+        })
+        .map((v) => `"${v}"`)
+        .join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "productos.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) return;
+      const hdr = lines[0].split(",").map((c) => c.replace(/"/g, "").trim());
+      const rows = lines.slice(1).map((l) => l.split(",").map((v) => v.replace(/^"|"$/g, "").trim()));
+      setPreviewHeaders(hdr);
+      setPreviewRows(rows.slice(0, 10));
+      setPendingImportRows(rows);
+      setShowConfirmImport(true);
+    };
+    reader.readAsText(file);
+  };
+
+  const [sortField, setSortField] = useState<"" | "name" | "price" | "id">("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001", []);
+
+  const loadSettings = async () => {
+    setLoadingSettings(true);
+    try {
+      const res = await fetch(`${apiBase}/api/admin/settings`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const data = await res.json();
+      setSettings(data);
+    } catch (err) {
+      console.error("Error loading settings", err);
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
+
+  const saveSetting = async (key: string, value: string) => {
+    try {
+      const res = await fetch(`${apiBase}/api/admin/settings`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key, value }),
+      });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      setSettings((prev) => ({ ...prev, [key]: value }));
+    } catch (err) {
+      console.error("Error saving setting", err);
+    }
+  };
+
+  const categories = useMemo(() => {
+    const derived = products.map((p) => p.category).filter((v): v is string => Boolean(v));
+    return Array.from(new Set([...derived, ...extraCategories])).sort();
+  }, [products, extraCategories]);
+
+  const rooms = useMemo(() => {
+    const derived = products.map((p) => p.room).filter((v): v is string => Boolean(v));
+    return Array.from(new Set([...derived, ...extraRooms])).sort();
+  }, [products, extraRooms]);
+
+  const styles = useMemo(() => {
+    const derived = products.map((p) => p.style).filter((v): v is string => Boolean(v));
+    return Array.from(new Set([...derived, ...extraStyles])).sort();
+  }, [products, extraStyles]);
+
+  const clearTaxonomy = async (
+    field: "category" | "room" | "style",
+    value: string
+  ) => {
+    if (!confirm(`Eliminar \"${value}\" y limpiar los productos asociados?`)) return;
+    const affected = products.filter((p) => (p as any)[field] === value);
+    for (const p of affected) {
+      await updateProductField(p.id, { [field]: undefined });
+    }
+    await loadProducts();
+  };
+
+  const filteredProducts = useMemo(() => {
+    let arr = products;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      arr = arr.filter((p) => {
+        return (
+          p.name.toLowerCase().includes(term) ||
+          String(p.id).includes(term) ||
+          (p.slug && p.slug.toLowerCase().includes(term)) ||
+          (p.category && p.category.toLowerCase().includes(term)) ||
+          (p.room && p.room.toLowerCase().includes(term)) ||
+          (p.store?.name && p.store.name.toLowerCase().includes(term))
+        );
+      });
+    }
+    if (filterCategory) {
+      arr = arr.filter((p) => p.category === filterCategory);
+    }
+    if (filterRoom) {
+      arr = arr.filter((p) => p.room === filterRoom);
+    }
+    if (filterFeatured) {
+      arr = arr.filter((p) => (filterFeatured === "yes" ? p.featured : !p.featured));
+    }
+    if (filterInStock) {
+      arr = arr.filter((p) => (filterInStock === "yes" ? p.inStock : !p.inStock));
+    }
+    return arr;
+  }, [products, searchTerm, filterCategory, filterRoom, filterFeatured, filterInStock]);
+
+  const sortedProducts = useMemo(() => {
+    if (!sortField) return filteredProducts;
+    const arr = [...filteredProducts];
+    arr.sort((a, b) => {
+      let va: any = a[sortField as keyof Product];
+      let vb: any = b[sortField as keyof Product];
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [filteredProducts, sortField, sortDir]);
+
+  const pagedProducts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedProducts.slice(start, start + pageSize);
+  }, [sortedProducts, page]);
+
+  useEffect(() => {
+    // reset paging when filter/sort changes
+    setPage(1);
+  }, [searchTerm, sortField, sortDir, sortedProducts.length]);
 
   useEffect(() => {
     if (user?.storeId) {
@@ -142,8 +370,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (user) {
       loadStats(user);
+      loadSettings();
     } else {
       setStats(null);
+      setSettings({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -316,7 +546,8 @@ export default function AdminPage() {
     setValidation((prev) => ({ ...prev, [product.id]: { error: "Validando..." } }));
     setRowError((prev) => ({ ...prev, [product.id]: "" }));
     try {
-      const res = await fetch(`${apiBase}/api/ar/validate-scale`, {
+      const tol = Number(settings.tolerance ?? "0.05") || 0.05;
+      const res = await fetch(`${apiBase}/api/ar/validate-scale?tolerance=${tol}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -358,6 +589,7 @@ export default function AdminPage() {
       category: p.category ?? "",
       room: p.room ?? "",
       style: p.style ?? "",
+      color: p.color ?? "",
       featured: Boolean(p.featured),
       price: String(p.price ?? ""),
       arUrl: p.arUrl ?? "",
@@ -365,6 +597,9 @@ export default function AdminPage() {
       depthCm: p.depthCm ? String(p.depthCm) : "",
       heightCm: p.heightCm ? String(p.heightCm) : "",
       imageUrl: p.imageUrl ?? "",
+      images: p.images ? p.images.map((i) => ({ url: i.url, type: i.type || undefined })) : [],
+      inStock: Boolean(p.inStock),
+      stockQty: p.stockQty ? String(p.stockQty) : "",
     });
     setFormErrors({});
     setFormValidation(null);
@@ -394,6 +629,11 @@ export default function AdminPage() {
     checkPositive(form.heightCm, "heightCm");
     if (form.arUrl && !isValidUrl(form.arUrl)) errors.arUrl = "URL inválida";
     if (form.imageUrl && !isValidUrl(form.imageUrl)) errors.imageUrl = "URL inválida";
+    form.images.forEach((img, idx) => {
+      if (img.url && !isValidUrl(img.url)) {
+        errors[`images.${idx}.url`] = "URL inválida";
+      }
+    });
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -410,7 +650,8 @@ export default function AdminPage() {
     setFormValidating(true);
     setFormValidation(null);
     try {
-      const res = await fetch(`${apiBase}/api/ar/validate-scale`, {
+      const tol = Number(settings.tolerance ?? "0.05") || 0.05;
+      const res = await fetch(`${apiBase}/api/ar/validate-scale?tolerance=${tol}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -441,6 +682,73 @@ export default function AdminPage() {
     }
   };
 
+  const updateProductField = async (id: number, patch: Partial<Product>) => {
+    try {
+      const res = await fetch(`${apiBase}/api/admin/products/${id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(patch),
+      });
+      if (res.status === 401) {
+        setUser(null);
+        setError("Sesión expirada");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      await loadProducts();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const loadProductLogs = async (prodId: number) => {
+    setLogLoading(true);
+    setLogEntries([]);
+    setLogProductId(prodId);
+    try {
+      const params = new URLSearchParams();
+      if (logActionFilter) params.set("action", logActionFilter);
+      if (logFromFilter) params.set("from", `${logFromFilter}T00:00:00.000Z`);
+      if (logToFilter) params.set("to", `${logToFilter}T23:59:59.999Z`);
+      const q = params.toString();
+      const res = await fetch(`${apiBase}/api/admin/products/${prodId}/logs${q ? `?${q}` : ""}`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setLogEntries(data);
+        setShowLogModal(true);
+      } else {
+        console.error("failed loading logs", res.status);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLogLoading(false);
+    }
+  };
+
+  const applyBulkAction = async (action: "delete" | "featured" | "unfeatured" | "inStock" | "outStock") => {
+    if (!selectedIds.size) return;
+    if (action === "delete" && !confirm(`¿Borrar ${selectedIds.size} productos?`)) return;
+    for (const id of Array.from(selectedIds)) {
+      if (action === "delete") {
+        await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
+      } else if (action === "featured") {
+        await updateProductField(id, { featured: true });
+      } else if (action === "unfeatured") {
+        await updateProductField(id, { featured: false });
+      } else if (action === "inStock") {
+        await updateProductField(id, { inStock: true });
+      } else if (action === "outStock") {
+        await updateProductField(id, { inStock: false });
+      }
+    }
+    setSelectedIds(new Set());
+  };
+
   const submitForm = async () => {
     if (!user) {
       setError("Debes iniciar sesión");
@@ -461,6 +769,7 @@ export default function AdminPage() {
         category: form.category || undefined,
         room: form.room || undefined,
         style: form.style || undefined,
+        color: form.color || undefined,
         featured: form.featured,
         price: form.price ? Number(form.price) : 0,
         arUrl: form.arUrl || undefined,
@@ -468,9 +777,16 @@ export default function AdminPage() {
         depthCm: form.depthCm ? Number(form.depthCm) : undefined,
         heightCm: form.heightCm ? Number(form.heightCm) : undefined,
         imageUrl: form.imageUrl || undefined,
+        images: form.images
+          .filter((i) => i.url)
+          .map((i) => ({ url: i.url, type: i.type || undefined })),
+        inStock: form.inStock,
+        stockQty: form.stockQty ? Number(form.stockQty) : undefined,
       };
       const isEdit = Boolean(form.id);
-      const url = isEdit ? `${apiBase}/api/admin/products/${form.id}` : `${apiBase}/api/admin/products`;
+      const tol = Number(settings.tolerance ?? "0.05") || 0.05;
+      const baseUrl = isEdit ? `${apiBase}/api/admin/products/${form.id}` : `${apiBase}/api/admin/products`;
+      const url = `${baseUrl}?tolerance=${tol}`;
       const method = isEdit ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -487,7 +803,11 @@ export default function AdminPage() {
         return;
       }
       if (!res.ok) {
-        setError(data?.error || `Error ${res.status}`);
+        let msg = data?.error || `Error ${res.status}`;
+        if (data?.details) {
+          msg += " " + JSON.stringify(data.details);
+        }
+        setError(msg);
         // mostrar sugerencia por fila si es validación de escala
         if (data?.validation?.suggestion?.factor && form.id) {
           setRowError((prev) => ({ ...prev, [form.id!]: `Sugiere factor ${data.validation.suggestion.factor.toFixed(3)}` }));
@@ -507,6 +827,63 @@ export default function AdminPage() {
   return (
     <div className="py-10">
       <Container>
+        {previewImageUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setPreviewImageUrl(null)}
+          >
+            <img src={previewImageUrl} className="max-h-[90%] max-w-[90%]" />
+          </div>
+        )}
+        {showLogModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Historial producto #{logProductId}</h3>
+                <button className="text-gray-600" onClick={() => setShowLogModal(false)}>×</button>
+              </div>
+              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+                <select
+                  className="rounded border px-2 py-1 text-sm"
+                  value={logActionFilter}
+                  onChange={(e) => setLogActionFilter(e.target.value)}
+                >
+                  <option value="">Acción</option>
+                  <option value="create">create</option>
+                  <option value="update">update</option>
+                  <option value="delete">delete</option>
+                </select>
+                <Input type="date" value={logFromFilter} onChange={(e) => setLogFromFilter(e.target.value)} />
+                <Input type="date" value={logToFilter} onChange={(e) => setLogToFilter(e.target.value)} />
+                <Button variant="secondary" onClick={() => logProductId && loadProductLogs(logProductId)}>
+                  Filtrar
+                </Button>
+              </div>
+              {logLoading ? (
+                <p>Cargando...</p>
+              ) : logEntries.length === 0 ? (
+                <p className="text-sm text-slate-600">No hay registros</p>
+              ) : (
+                <ul className="text-sm space-y-2 max-h-80 overflow-y-auto">
+                  {logEntries.map((entry: any) => (
+                    <li key={entry.id} className="border-b pb-1">
+                      <div className="flex justify-between">
+                        <span className="font-semibold">{entry.action}</span>
+                        <span className="text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div className="text-xs text-slate-600">por {entry.actor ?? entry.userName ?? entry.userEmail ?? "desconocido"}</div>
+                      {entry.data?.summary && <div className="text-xs mt-1">{entry.data.summary}</div>}
+                      {entry.data?.changedFields?.length ? (
+                        <div className="text-xs mt-1">Campos: {entry.data.changedFields.join(", ")}</div>
+                      ) : null}
+                      {entry.data && <pre className="text-xs bg-slate-100 p-1 mt-1 overflow-x-auto">{JSON.stringify(entry.data, null, 2)}</pre>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
         <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -693,350 +1070,45 @@ export default function AdminPage() {
           </div>
         )}
 
+        {user && (
+          <>
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Configuración global</h2>
+                {loadingSettings && <span className="text-xs text-slate-500">Cargando...</span>}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-700">Tolerancia AR (0‑1)</p>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={settings.tolerance ?? "0.05"}
+                    onChange={(e) => setSettings((s) => ({ ...s, tolerance: e.target.value }))}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    className="mt-2"
+                    onClick={() => saveSetting("tolerance", settings.tolerance ?? "0.05")}
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
         {!user ? (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
             <p>Inicia sesión para crear, editar o validar productos.</p>
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">Crear / editar producto</div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Tienda</p>
-              <select
-                className={`w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${formErrors.storeId ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-slate-200 focus:border-primary"}`}
-                value={form.storeId ?? ""}
-                disabled={user?.role === "STORE"}
-                onChange={(e) => {
-                  const value = e.target.value ? Number(e.target.value) : undefined;
-                  setForm((f) => ({ ...f, storeId: value }));
-                  clearFieldError("storeId");
-                }}
-              >
-                <option value="">Seleccionar</option>
-                {(user?.role === "STORE" && user.storeId ? stores.filter((s) => s.id === user.storeId) : stores).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              {formErrors.storeId && <p className="mt-1 text-xs text-red-600">{formErrors.storeId}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Nombre</p>
-              <Input
-                className={formErrors.name ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.name}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, name: e.target.value }));
-                  clearFieldError("name");
-                }}
-              />
-              {formErrors.name && <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Slug</p>
-              <Input
-                className={formErrors.slug ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.slug}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, slug: e.target.value }));
-                  clearFieldError("slug");
-                }}
-              />
-              {formErrors.slug && <p className="mt-1 text-xs text-red-600">{formErrors.slug}</p>}
-            </div>
-            <div className="lg:col-span-3">
-              <p className="text-xs font-semibold text-slate-700">Descripción</p>
-              <textarea
-                className={`w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${formErrors.description ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-slate-200 focus:border-primary"}`}
-                rows={2}
-                value={form.description}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, description: e.target.value }));
-                  clearFieldError("description");
-                }}
-              />
-              {formErrors.description && <p className="mt-1 text-xs text-red-600">{formErrors.description}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Precio</p>
-              <Input
-                type="number"
-                className={formErrors.price ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.price}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, price: e.target.value }));
-                  clearFieldError("price");
-                }}
-              />
-              {formErrors.price && <p className="mt-1 text-xs text-red-600">{formErrors.price}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Categoría</p>
-              <Input value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Ambiente</p>
-              <Input value={form.room} onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Estilo</p>
-              <Input value={form.style} onChange={(e) => setForm((f) => ({ ...f, style: e.target.value }))} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">AR URL (GLB/USDZ)</p>
-              <Input
-                className={formErrors.arUrl ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.arUrl}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, arUrl: e.target.value }));
-                  clearFieldError("arUrl");
-                }}
-              />
-              {formErrors.arUrl && <p className="mt-1 text-xs text-red-600">{formErrors.arUrl}</p>}
-            </div>
-
-            {/* AI 3D Generation */}
-            {form.id && (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <AI3DGenerator
-                  productId={form.id}
-                  productName={form.name || "Product"}
-                  currentImageUrl={form.imageUrl}
-                  currentArUrl={form.arUrl}
-                  onSuccess={(glbUrl) => {
-                    setForm((f) => ({ ...f, arUrl: glbUrl }));
-                    // Refresh products list
-                    fetchProducts();
-                  }}
-                />
-              </div>
-            )}
-
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Imagen principal (URL)</p>
-              <Input
-                className={formErrors.imageUrl ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.imageUrl}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, imageUrl: e.target.value }));
-                  clearFieldError("imageUrl");
-                }}
-              />
-              {formErrors.imageUrl && <p className="mt-1 text-xs text-red-600">{formErrors.imageUrl}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Ancho (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.widthCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.widthCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, widthCm: e.target.value }));
-                  clearFieldError("widthCm");
-                }}
-              />
-              {formErrors.widthCm && <p className="mt-1 text-xs text-red-600">{formErrors.widthCm}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Profundidad (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.depthCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.depthCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, depthCm: e.target.value }));
-                  clearFieldError("depthCm");
-                }}
-              />
-              {formErrors.depthCm && <p className="mt-1 text-xs text-red-600">{formErrors.depthCm}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Altura (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.heightCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.heightCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, heightCm: e.target.value }));
-                  clearFieldError("heightCm");
-                }}
-              />
-              {formErrors.heightCm && <p className="mt-1 text-xs text-red-600">{formErrors.heightCm}</p>}
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.featured}
-                onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
-              />
-              Destacado
-            </label>
-            <div className="flex items-end gap-2">
-              <Button
-                onClick={submitForm}
-                disabled={!user || saving || !form.storeId || !form.name || !form.slug || !form.description || !form.price}
-              >
-                {saving ? "Guardando..." : form.id ? "Guardar cambios" : "Crear"}
-              </Button>
-              {form.id && (
-                <Button variant="ghost" onClick={resetForm} disabled={saving}>
-                  Cancelar
-                </Button>
-              )}
-              <Button
-                variant="secondary"
-                onClick={validateFormScale}
-                disabled={!user || formValidating || !form.arUrl || (!form.widthCm && !form.depthCm && !form.heightCm)}
-              >
-                {formValidating ? "Validando..." : "Probar escala"}
-              </Button>
-            </div>
-            {formValidation && (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                {"error" in formValidation ? (
-                  <p className="font-semibold text-red-600">{formValidation.error}</p>
-                ) : formValidation.ok ? (
-                  <p className="font-semibold text-emerald-700">Escala OK</p>
-                ) : (
-                  <p className="font-semibold text-amber-700">Escala NO coincide</p>
-                )}
-                {"error" in formValidation ? null : (
-                  <div className="mt-1 flex flex-wrap gap-3 text-slate-700">
-                    <span>GLB: {formValidation.sizeCm.width}×{formValidation.sizeCm.depth}×{formValidation.sizeCm.height} cm</span>
-                    <span>Esperado: {formValidation.expected.width ?? "?"}×{formValidation.expected.depth ?? "?"}×{formValidation.expected.height ?? "?"} cm</span>
-                    {formValidation.suggestion && (
-                      <span className="font-semibold">Sugerido factor: {formValidation.suggestion.factor.toFixed(3)}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-slate-800">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-600">
-                    <tr>
-                      <th className="px-4 py-3">Nombre</th>
-                      <th className="px-4 py-3">Tienda</th>
-                      <th className="px-4 py-3">Precio</th>
-                      <th className="px-4 py-3">Media</th>
-                      <th className="px-4 py-3">Dimensiones</th>
-                      <th className="px-4 py-3">Meta</th>
-                      <th className="px-4 py-3">Validación</th>
-                      <th className="px-4 py-3">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.length === 0 && (
-                      <tr>
-                        <td className="px-4 py-4 text-slate-500" colSpan={8}>
-                          {loading ? "Cargando..." : "Sin productos"}
-                        </td>
-                      </tr>
-                    )}
-                    {products.map((p) => {
-                  const val = validation[p.id];
-                  const valText = val
-                    ? "error" in val
-                      ? val.error
-                      : val.ok
-                        ? "Escala OK"
-                        : "Escala NO"
-                    : "-";
-                  return (
-                    <tr key={p.id} className="border-t border-slate-100">
-                      <td className="px-4 py-3 align-top">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-900">{p.name}</span>
-                            {p.featured ? (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Destacado</span>
-                            ) : null}
-                          </div>
-                          {p.description ? <p className="text-xs text-slate-600 overflow-hidden text-ellipsis whitespace-nowrap">{p.description}</p> : null}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">{p.store?.name ?? "-"}</td>
-                      <td className="px-4 py-3 text-slate-700 align-top">${typeof p.price === "string" ? p.price : p.price.toLocaleString("es-AR")}</td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className={`rounded-full px-2 py-1 ${p.arUrl ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                            {p.arUrl ? "AR" : "Sin AR"}
-                          </span>
-                          <span className={`rounded-full px-2 py-1 ${p.imageUrl ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
-                            {p.imageUrl ? "Imagen" : "Sin imagen"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        {p.widthCm ?? "?"}×{p.depthCm ?? "?"}×{p.heightCm ?? "?"} cm
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {p.category && <span className="rounded-full bg-slate-100 px-2 py-1">Cat: {p.category}</span>}
-                          {p.room && <span className="rounded-full bg-slate-100 px-2 py-1">Amb: {p.room}</span>}
-                          {p.style && <span className="rounded-full bg-slate-100 px-2 py-1">Est: {p.style}</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-col gap-1 text-xs">
-                          <span className={valText.includes("OK") ? "font-semibold text-emerald-700" : valText.includes("NO") ? "font-semibold text-amber-700" : "text-slate-700"}>{valText}</span>
-                          {rowError[p.id] && <span className="text-amber-700">{rowError[p.id]}</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="md" variant="secondary" onClick={() => validate(p)} disabled={!user || loading}>
-                            Validar
-                          </Button>
-                          <Button size="md" variant="ghost" onClick={() => onEdit(p)} disabled={!user || loading}>
-                            Editar
-                          </Button>
-                          <Button
-                            size="md"
-                            variant="ghost"
-                            onClick={async () => {
-                              if (!user) {
-                                setError("Debes iniciar sesión");
-                                return;
-                              }
-                              if (!confirm("¿Borrar producto?")) return;
-                              try {
-                                const res = await fetch(`${apiBase}/api/admin/products/${p.id}`, {
-                                  method: "DELETE",
-                                  credentials: "include",
-                                });
-                                if (res.status === 401) {
-                                  setUser(null);
-                                  setError("Sesión expirada");
-                                  return;
-                                }
-                                if (!res.ok) throw new Error(`Error ${res.status}`);
-                                await loadProducts();
-                              } catch (err) {
-                                setRowError((prev) => ({ ...prev, [p.id]: (err as Error).message }));
-                              }
-                            }}
-                            disabled={!user || loading}
-                          >
-                            Borrar
-                          </Button>
-                        </div>
-                        {rowError[p.id] && <p className="text-xs font-semibold text-amber-700">{rowError[p.id]}</p>}
-                      </td>
-                    </tr>
-                  );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {/* Additional Dashboard Widgets can go here in the future */}
           </>
         )}
       </Container>

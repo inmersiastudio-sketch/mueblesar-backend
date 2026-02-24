@@ -10,7 +10,7 @@ export type CartItem = {
   quantity: number;
 };
 
-const CART_STORAGE_KEY = "mueblesar_cart";
+const CART_STORAGE_KEY = "amobly_cart";
 
 export function getCart(): CartItem[] {
   if (typeof window === "undefined") return [];

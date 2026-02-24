@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole, AuthenticatedRequest } from "../lib/auth.js";
 import { createImageTo3DTask, getTaskStatus, downloadGLB } from "../lib/meshy.js";
-import { uploadGLB } from "../lib/cloudinary.js";
+import { uploadGLB, isFileTooLargeError } from "../lib/cloudinary.js";
 import { validateGLBScale } from "../lib/glb-validator.js";
 import { compressGLB, getFileSizeInfo } from "../lib/glb-compressor.js";
 import { prisma } from "../lib/prisma.js";
@@ -137,33 +137,96 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
 
     // Update job status
     if (meshyStatus.status === "SUCCEEDED" && meshyStatus.model_urls?.glb) {
-      // Use Meshy URL directly (valid for 7 days)
-      // TODO: For production, compress and upload to permanent storage
-      const glbUrl = meshyStatus.model_urls.glb;
+      const tempGlbUrl = meshyStatus.model_urls.glb;
 
-      // Update product with arUrl
-      await prisma.product.update({
-        where: { id: job.productId },
-        data: { arUrl: glbUrl },
-      });
+      // --- Production-ready flow: compress and upload to permanent storage ---
+      try {
+        // 1. Download GLB from temporary URL
+        const originalBuffer = await downloadGLB(tempGlbUrl);
+        const originalSize = originalBuffer.length;
 
-      // Update job
-      await (prisma as any).aI3DJob.update({
-        where: { id: job.id },
-        data: {
+        // 2. Compress the GLB (standard pass; retry with max compression if upload fails by size)
+        let compressedBuffer = await compressGLB(originalBuffer);
+        let compressedSize = compressedBuffer.length;
+        let sizeInfo = getFileSizeInfo(originalSize, compressedSize);
+        console.log(`GLB compressed for product ${job.productId}: ${sizeInfo.originalSizeMB}MB -> ${sizeInfo.compressedSizeMB}MB (${sizeInfo.reductionPercent}% reduction)`);
+
+        const uploadOptions = {
+          public_id: `product_${job.productId}_3d_model_${Date.now()}.glb`,
+          overwrite: true,
+          resource_type: "raw" as const,
+        };
+
+        let uploadResult: { url: string; publicId: string };
+        try {
+          uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+        } catch (firstUploadError) {
+          if (!isFileTooLargeError(firstUploadError)) throw firstUploadError;
+          // Retry with maximum compression for scale (many models = avoid failures later)
+          console.log(`GLB for product ${job.productId} over size limit; retrying with max compression...`);
+          compressedBuffer = await compressGLB(originalBuffer, { maxTextureSize: 128, maxCompression: true });
+          compressedSize = compressedBuffer.length;
+          sizeInfo = getFileSizeInfo(originalSize, compressedSize);
+          console.log(`GLB max-compressed: ${sizeInfo.originalSizeMB}MB -> ${sizeInfo.compressedSizeMB}MB`);
+          uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+        }
+
+        const permanentGlbUrl = uploadResult.url;
+
+        // 3. Validate scale using buffer (optional but recommended)
+        try {
+          await validateGLBScale(compressedBuffer);
+          console.log(`Scale validation passed for GLB: ${permanentGlbUrl}`);
+        } catch (scaleError) {
+          console.warn(`Scale validation failed for ${permanentGlbUrl}:`, scaleError);
+        }
+
+        // 4. Update product and job with permanent URL
+        await prisma.product.update({
+          where: { id: job.productId },
+          data: { arUrl: permanentGlbUrl },
+        });
+
+        await (prisma as any).aI3DJob.update({
+          where: { id: job.id },
+          data: {
+            status: "SUCCEEDED",
+            glbUrl: permanentGlbUrl,
+            metadata: {
+              ...meshyStatus,
+              ...sizeInfo,
+            } as any,
+          },
+        });
+
+        return res.json({
+          id: job.id,
+          productId: job.productId,
           status: "SUCCEEDED",
-          glbUrl: glbUrl,
-          metadata: meshyStatus as any,
-        },
-      });
+          glbUrl: permanentGlbUrl,
+          progress: 100,
+        });
 
-      return res.json({
-        id: job.id,
-        productId: job.productId,
-        status: "SUCCEEDED",
-        glbUrl: glbUrl,
-        progress: 100,
-      });
+      } catch (processingError) {
+        console.error("Error processing and uploading GLB:", processingError);
+        const errorMessage = processingError instanceof Error ? processingError.message : "Failed to process GLB";
+        await (prisma as any).aI3DJob.update({
+          where: { id: job.id },
+          data: {
+            status: "FAILED",
+            errorMsg: errorMessage,
+          },
+        });
+        // Devuelve 200 con status FAILED para que el polling frontend lea el error limpiamente en vez de interpretar bloqueo de red
+        return res.json({
+          id: job.id,
+          productId: job.productId,
+          status: "FAILED",
+          error: errorMessage,
+          progress: 0,
+        });
+      }
+
     } else if (meshyStatus.status === "FAILED") {
       await (prisma as any).aI3DJob.update({
         where: { id: job.id },

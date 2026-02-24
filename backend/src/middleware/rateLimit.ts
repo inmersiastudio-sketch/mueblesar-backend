@@ -1,17 +1,21 @@
 import type { NextFunction, Request, Response } from "express";
 
-// Simple in-memory rate limiter (per-process). Good for small deployments.
-// For production at scale, replace with a shared store (Redis) or a library like express-rate-limit.
-type Options = {
+// Rate limiter middleware with optional Redis-backed counters.
+// In development or single-instance deployments the in-memory Map is used.
+// For production we expect REDIS_URL to be configured and a Redis client
+// to be available; this gives a global counter across processes.
+
+import { redis } from "../lib/redis.js";
+
+interface Options {
   windowMs: number;
   max: number;
   keyGenerator?: (req: Request) => string;
   message?: string;
   statusCode?: number;
-};
+}
 
 type Counter = { count: number; startsAt: number };
-
 const buckets = new Map<string, Counter>();
 
 export function rateLimit(options: Options) {
@@ -23,8 +27,27 @@ export function rateLimit(options: Options) {
     statusCode = 429,
   } = options;
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    const key = keyGenerator(req);
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const key = `rate:${keyGenerator(req)}`;
+
+    if (redis) {
+      try {
+        const count = await redis.incr(key);
+        if (count === 1) {
+          // first request – set expiration
+          await redis.pexpire(key, windowMs);
+        }
+        if (count > max) {
+          return res.status(statusCode).json({ error: message });
+        }
+        return next();
+      } catch (err) {
+        console.error("Redis rate limiter error", err);
+        // if Redis is failing, degrade to in-memory to avoid blocking traffic
+      }
+    }
+
+    // fallback to in-memory bucket
     const now = Date.now();
     const entry = buckets.get(key);
 

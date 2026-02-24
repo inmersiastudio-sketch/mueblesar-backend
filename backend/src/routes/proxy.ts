@@ -34,8 +34,12 @@ router.get("/glb", async (req, res) => {
 
     res.send(glbBuffer);
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("GLB proxy error:", error);
-    res.status(500).json({ error: "Failed to fetch GLB file" });
+    // Return the upstream status if available (e.g. 403 expired URL, 404 not found)
+    const upstreamMatch = msg.match(/Failed to download GLB: (\d{3})/);
+    const statusCode = upstreamMatch ? parseInt(upstreamMatch[1]) : 500;
+    res.status(statusCode).json({ error: "Failed to fetch GLB file", detail: msg });
   }
 });
 

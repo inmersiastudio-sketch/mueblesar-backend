@@ -26,34 +26,34 @@ enum ArSource {
 }
 
 model Store {
-  id             Int       @id @default(autoincrement())
-  name           String
-  slug           String    @unique
-  logoUrl        String?
-  description    String?
-  whatsapp       String?
-  address        String?
-  ai3dCredits    Int       @default(3)  // Free credits for new stores
-  ai3dUsed       Int       @default(0)  // Total models generated
-  subscriptionTier String? @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
-  createdAt      DateTime  @default(now())
-  products       Product[]
-  users          User[]
-  orders         Order[]
-  arViews        ArView[]
-  creditPurchases CreditPurchase[]
+  id               Int              @id @default(autoincrement())
+  name             String
+  slug             String           @unique
+  logoUrl          String?
+  description      String?
+  whatsapp         String?
+  address          String?
+  ai3dCredits      Int              @default(3) // Free credits for new stores
+  ai3dUsed         Int              @default(0) // Total models generated
+  subscriptionTier String?          @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  createdAt        DateTime         @default(now())
+  products         Product[]
+  users            User[]
+  orders           Order[]
+  arViews          ArView[]
+  creditPurchases  CreditPurchase[]
 }
 
 model CreditPurchase {
-  id          Int      @id @default(autoincrement())
-  store       Store    @relation(fields: [storeId], references: [id])
-  storeId     Int
-  credits     Int      // Number of credits purchased
-  amount      Decimal  @db.Decimal(10, 2) // Amount paid in ARS/USD
-  currency    String   @default("ARS")
-  paymentId   String?  // Mercado Pago payment ID
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId   Int
+  credits   Int // Number of credits purchased
+  amount    Decimal  @db.Decimal(10, 2) // Amount paid in ARS/USD
+  currency  String   @default("ARS")
+  paymentId String? // Mercado Pago payment ID
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
 
   @@index([storeId])
   @@index([paymentId])
@@ -61,7 +61,7 @@ model CreditPurchase {
 
 model Product {
   id          Int            @id @default(autoincrement())
-  store       Store          @relation(fields: [storeId], references: [id])
+  store       Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   storeId     Int
   name        String
   slug        String         @unique
@@ -86,51 +86,52 @@ model Product {
   images      ProductImage[]
   orderItems  OrderItem[]
   arViews     ArView[]
+  logs        ProductLog[]
 }
 
 model ProductImage {
-  id        Int      @id @default(autoincrement())
-  product   Product  @relation(fields: [productId], references: [id])
+  id        Int     @id @default(autoincrement())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId Int
   url       String
   altText   String?
-  position  Int      @default(0)
+  position  Int     @default(0)
   type      String?
 }
 
 model Order {
-  id         Int          @id @default(autoincrement())
-  store      Store        @relation(fields: [storeId], references: [id])
-  storeId    Int
-  user       User?        @relation(fields: [userId], references: [id])
-  userId     Int?
-  status     OrderStatus  @default(PAID)
-  total      Decimal      @db.Decimal(12, 2)
-  customer   String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  items      OrderItem[]
+  id        Int         @id @default(autoincrement())
+  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId   Int
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    Int?
+  status    OrderStatus @default(PAID)
+  total     Decimal     @db.Decimal(12, 2)
+  customer  String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  items     OrderItem[]
 }
 
 model OrderItem {
-  id         Int      @id @default(autoincrement())
-  order      Order    @relation(fields: [orderId], references: [id])
-  orderId    Int
-  product    Product  @relation(fields: [productId], references: [id])
-  productId  Int
-  quantity   Int
-  unitPrice  Decimal  @db.Decimal(10, 2)
-  subtotal   Decimal  @db.Decimal(12, 2)
+  id        Int     @id @default(autoincrement())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId Int
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(12, 2)
 }
 
 model ArView {
-  id         Int       @id @default(autoincrement())
-  product    Product   @relation(fields: [productId], references: [id])
-  productId  Int
-  store      Store?    @relation(fields: [storeId], references: [id])
-  storeId    Int?
-  source     ArSource  @default(UNKNOWN)
-  createdAt  DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId Int
+  store     Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId   Int?
+  source    ArSource @default(UNKNOWN)
+  createdAt DateTime @default(now())
 
   @@index([productId])
   @@index([storeId])
@@ -138,15 +139,15 @@ model ArView {
 }
 
 model User {
-  id           Int                    @id @default(autoincrement())
-  email        String                 @unique
+  id           Int                  @id @default(autoincrement())
+  email        String               @unique
   name         String?
   passwordHash String
-  role         Role                   @default(STORE)
+  role         Role                 @default(STORE)
   storeId      Int?
-  store        Store?                 @relation(fields: [storeId], references: [id])
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
+  store        Store?               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
   orders       Order[]
   resetTokens  PasswordResetToken[]
 }
@@ -172,19 +173,38 @@ enum AI3DJobStatus {
 }
 
 model AI3DJob {
-  id          Int            @id @default(autoincrement())
-  productId   Int
-  imageUrl    String
-  provider    String         @default("meshy") // meshy, luma, tripo, etc
-  taskId      String?        // ID del task en el proveedor
-  status      AI3DJobStatus  @default(PENDING)
-  glbUrl      String?        // URL del modelo generado (Cloudinary)
-  errorMsg    String?
-  metadata    Json?          // datos extra del proveedor
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id        Int           @id @default(autoincrement())
+  productId Int
+  imageUrl  String
+  provider  String        @default("meshy") // meshy, luma, tripo, etc
+  taskId    String? // ID del task en el proveedor
+  status    AI3DJobStatus @default(PENDING)
+  glbUrl    String? // URL del modelo generado (Cloudinary)
+  errorMsg  String?
+  metadata  Json? // datos extra del proveedor
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([productId])
   @@index([status])
   @@index([taskId])
+}
+
+// persisted admin-configurable options
+model AppSetting {
+  key   String @id
+  value String
+}
+
+model ProductLog {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId Int
+  userId    Int? // who performed the action
+  action    String // create, update, delete, etc
+  data      Json? // optional snapshot or diff
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
 }

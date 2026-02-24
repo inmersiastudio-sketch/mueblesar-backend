@@ -16,7 +16,7 @@ export type FavoriteItem = {
   storeSlug?: string;
 };
 
-const STORAGE_KEY = "mueblesar:favorites:v1";
+const STORAGE_KEY = "amobly:favorites:v1";
 
 export function useFavorites() {
   const [items, setItems] = useState<FavoriteItem[]>([]);

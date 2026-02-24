@@ -83,7 +83,8 @@ export async function getTaskStatus(taskId: string): Promise<MeshyTaskResponse> 
 export async function downloadGLB(url: string): Promise<Buffer> {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to download GLB: ${response.status}`);
+    const errorText = await response.text().catch(() => "Could not read error body");
+    throw new Error(`Failed to download GLB: ${response.status} ${response.statusText} - ${errorText}`);
   }
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);

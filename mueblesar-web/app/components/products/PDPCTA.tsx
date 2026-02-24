@@ -19,6 +19,7 @@ type Props = {
   widthCm?: number;
   depthCm?: number;
   heightCm?: number;
+  disabled?: boolean;           // disable actions when product is out of stock
 };
 
 export function PDPCTA({ 
@@ -35,7 +36,8 @@ export function PDPCTA({
   arLink, 
   widthCm, 
   depthCm, 
-  heightCm 
+  heightCm,
+  disabled = false,
 }: Props) {
   const track = (name: string, props?: Record<string, unknown>) => {
     try {
@@ -60,6 +62,7 @@ export function PDPCTA({
           storeWhatsapp: storeWhatsapp ?? null,
         }}
         className="w-full"
+        disabled={disabled}
       />
       
       <div className="flex flex-wrap gap-3">

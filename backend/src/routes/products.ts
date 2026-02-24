@@ -100,6 +100,9 @@ router.get("/", async (req, res) => {
     }));
     return res.json({ items, total, page, pageSize });
   } catch (err) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({ error: "Service temporarily unavailable" });
+      }
     // Fallback to mock data if DB is not reachable
     const filtered = products.filter((p) => {
       if (filters.category && p.category !== filters.category) return false;
@@ -145,6 +148,9 @@ router.get("/:idOrSlug", async (req, res) => {
     }
     return res.json(product);
   } catch (err) {
+      if (process.env.NODE_ENV === "production") {
+        return res.status(503).json({ error: "Service temporarily unavailable" });
+      }
     const product = byId
       ? products.find((p) => p.id === numericId)
       : products.find((p) => p.slug === param);

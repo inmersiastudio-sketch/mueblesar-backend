@@ -69,7 +69,9 @@ router.post("/validate-scale", requireAuth, requireRole([Role.ADMIN, Role.STORE]
       suggestion,
     });
   } catch (err) {
-    return res.status(500).json({ error: "No se pudo validar el modelo", detail: (err as Error).message });
+    console.error("Scale validation error:", err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: "No se pudo validar el modelo", detail: errorMessage });
   }
 });
 

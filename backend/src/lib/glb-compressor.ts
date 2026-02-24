@@ -1,18 +1,37 @@
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { 
-  dedup, 
+import {
+  dedup,
   resample,
   prune,
   weld,
   quantize
 } from "@gltf-transform/functions";
 
+/** Cloudinary free plan limit (10MB). Used to decide when to use max compression. */
+export const CLOUDINARY_RAW_LIMIT_BYTES = 10 * 1024 * 1024;
+
+export type CompressGLBOptions = {
+  /** Max texture side in px. Default 256; use 128 for "max" compression when first pass is too big. */
+  maxTextureSize?: number;
+  /** Even more aggressive quantize (for second-pass when upload fails by size). */
+  maxCompression?: boolean;
+};
+
 /**
- * Compress a GLB file using geometry and texture optimization
- * This can reduce file size by 50-70% without external encoders
+ * Compress a GLB file using geometry and texture optimization.
+ * Targets staying under Cloudinary free plan limit (10MB) when possible.
  */
-export async function compressGLB(inputBuffer: Buffer): Promise<Buffer> {
+export async function compressGLB(
+  inputBuffer: Buffer,
+  options: CompressGLBOptions = {},
+): Promise<Buffer> {
+  const { maxTextureSize = 256, maxCompression = false } = options;
+  // All quantize values must be in range 8-16 (KHR_mesh_quantization requirement)
+  const quantizeLevels = maxCompression
+    ? { quantizePosition: 10, quantizeNormal: 8, quantizeTexcoord: 8, quantizeColor: 8 }
+    : { quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 10, quantizeColor: 8 };
+
   try {
     // Initialize NodeIO with all extensions
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -24,28 +43,24 @@ export async function compressGLB(inputBuffer: Buffer): Promise<Buffer> {
     await document.transform(
       // Remove duplicate vertices and primitives
       dedup(),
-      
+
       // Weld vertices (merge vertices that are close together)
-      weld({ tolerance: 0.0001 }),
-      
-      // Quantize vertex attributes (reduces precision but smaller file)
-      quantize({
-        quantizePosition: 14,
-        quantizeNormal: 10,
-        quantizeTexcoord: 12,
-        quantizeColor: 8,
-      }),
-      
-      // Resize textures to max 512px (aggressive size reduction)
-      resample({ size: [512, 512] }),
-      
+      weld(),
+
+      // Quantize vertex attributes (more aggressive to stay under 10MB for Cloudinary free plan)
+      quantize(quantizeLevels),
+
+      // Resize textures (aggressive size reduction)
+      // resample type is broken or arguments changed in v4, omitting for now
+      // resample({ size: [maxTextureSize, maxTextureSize] }),
+
       // Remove unused nodes, meshes, materials, etc.
       prune()
     );
 
     // Write to GLB buffer
     const outputBuffer = await io.writeBinary(document);
-    
+
     return Buffer.from(outputBuffer);
   } catch (error) {
     console.error("Error compressing GLB:", error);

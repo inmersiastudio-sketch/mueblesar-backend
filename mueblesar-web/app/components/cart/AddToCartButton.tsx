@@ -8,30 +8,37 @@ type AddToCartButtonProps = {
   product: Omit<CartItem, "quantity">;
   variant?: "default" | "compact";
   className?: string;
+  disabled?: boolean;
 };
 
-export function AddToCartButton({ product, variant = "default", className = "" }: AddToCartButtonProps) {
+export function AddToCartButton({ product, variant = "default", className = "", disabled = false }: AddToCartButtonProps) {
   const { addItem } = useCart();
   const [justAdded, setJustAdded] = useState(false);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+    if (disabled) return;
     addItem(product);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 2000);
-  };
+  };  
+
 
   if (variant === "compact") {
     return (
       <button
         onClick={handleAdd}
+        disabled={disabled}
         className={`flex h-9 w-9 items-center justify-center rounded-full ${
-          justAdded ? "bg-green-500" : "bg-primary hover:bg-primary/90"
+          disabled
+            ? "bg-slate-300 cursor-not-allowed"
+            : justAdded
+            ? "bg-green-500"
+            : "bg-primary hover:bg-primary/90"
         } text-white transition-all ${className}`}
-        aria-label="Agregar al carrito"
-        title="Agregar al carrito"
+        aria-label={disabled ? "Agotado" : "Agregar al carrito"}
+        title={disabled ? "Agotado" : "Agregar al carrito"}
       >
         {justAdded ? (
           <svg
@@ -67,8 +74,11 @@ export function AddToCartButton({ product, variant = "default", className = "" }
   return (
     <button
       onClick={handleAdd}
+      disabled={disabled}
       className={`flex items-center justify-center gap-2 rounded-lg px-6 py-3 font-medium transition-all ${
-        justAdded
+        disabled
+          ? "bg-slate-300 text-slate-600 cursor-not-allowed"
+          : justAdded
           ? "bg-green-500 text-white"
           : "bg-primary text-white hover:bg-primary/90"
       } ${className}`}

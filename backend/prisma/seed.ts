@@ -82,6 +82,26 @@ async function main() {
     ],
     skipDuplicates: true,
   });
+  // add some example images with colors
+  const prod1 = await prisma.product.findUnique({ where: { slug: "sofa-moderno-gris-3-cuerpos" } });
+  const prod2 = await prisma.product.findUnique({ where: { slug: "mesa-comedor-roble-6-personas" } });
+  if (prod1) {
+    await prisma.productImage.createMany({
+      data: [
+        { productId: prod1.id, url: "https://placehold.co/600x400/cccccc/000000?text=Sof%C3%A1+gris", type: "gris" },
+        { productId: prod1.id, url: "https://placehold.co/600x400/ff0000/000000?text=Sof%C3%A1+rojo", type: "rojo" },
+      ],
+      skipDuplicates: true,
+    });
+  }
+  if (prod2) {
+    await prisma.productImage.createMany({
+      data: [
+        { productId: prod2.id, url: "https://placehold.co/600x400/aa7733/000000?text=Mesa+roble", type: "madera" },
+      ],
+      skipDuplicates: true,
+    });
+  }
 
   // Validación opcional de escala de modelos demo (no bloquea el seed, solo informa)
   const validations = [

@@ -1,5 +1,5 @@
 {
-  "name": "mueblesar-backend",
+  "name": "amobly-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -29,6 +29,7 @@
     "draco3dgltf": "^1.5.7",
     "express": "^4.19.2",
     "helmet": "^7.2.0",
+    "ioredis": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "pino": "^9.5.0",

@@ -47,6 +47,31 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().optional().default(cloudinaryConfig.CLOUDINARY_API_KEY),
   CLOUDINARY_API_SECRET: z.string().optional().default(cloudinaryConfig.CLOUDINARY_API_SECRET),
   MESHY_API_KEY: z.string().optional().default(""),
+  REDIS_URL: z.string().optional().default("")
 });
 
-export const env = envSchema.parse(process.env);
+const parsedEnv = envSchema.parse(process.env);
+
+if (parsedEnv.NODE_ENV === "production") {
+  const issues: string[] = [];
+
+  if (!parsedEnv.JWT_SECRET || parsedEnv.JWT_SECRET === "dev-secret-change") {
+    issues.push("JWT_SECRET ausente o inseguro en producción");
+  }
+
+  if (!parsedEnv.ADMIN_API_KEY || parsedEnv.ADMIN_API_KEY === "dev-admin-key") {
+    issues.push("ADMIN_API_KEY ausente o inseguro en producción");
+  }
+
+  // require Redis in production for distributed rate limiting
+  if (!parsedEnv.REDIS_URL) {
+    issues.push("REDIS_URL no configurado (necesario para rate limiting)");
+  }
+
+  if (issues.length) {
+    throw new Error(`Configuración insegura en producción: ${issues.join("; ")}`);
+  }
+}
+
+export const env = parsedEnv;
+
