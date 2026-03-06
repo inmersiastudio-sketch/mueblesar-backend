@@ -46,7 +46,14 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(cloudinaryConfig.CLOUDINARY_CLOUD_NAME),
   CLOUDINARY_API_KEY: z.string().optional().default(cloudinaryConfig.CLOUDINARY_API_KEY),
   CLOUDINARY_API_SECRET: z.string().optional().default(cloudinaryConfig.CLOUDINARY_API_SECRET),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional().default("sa-east-1"),
+  AWS_BUCKET_NAME: z.string().optional(),
   MESHY_API_KEY: z.string().optional().default(""),
+  TRIPO_API_KEY: z.string().optional().default(""),
+  RESEND_API_KEY: z.string().optional().default(""),
+  EMAIL_FROM: z.string().optional().default("Amobly <onboarding@resend.dev>"),
   REDIS_URL: z.string().optional().default("")
 });
 

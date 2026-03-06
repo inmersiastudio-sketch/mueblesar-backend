@@ -26,6 +26,8 @@ const baseSchema = {
   stockQty: z.number().optional(),
   images: z.array(z.object({ url: z.string().url(), type: z.string().optional() })).optional(),
   arUrl: z.string().url().optional().or(z.literal("")).or(z.null()),
+  glbUrl: z.string().url().optional().or(z.literal("")).or(z.null()),
+  usdzUrl: z.string().url().optional().or(z.literal("")).or(z.null()),
   imageUrl: z.string().url().optional().or(z.literal("")).or(z.null()),
   inStock: z.boolean().optional().default(true),
   featured: z.boolean().optional().default(false),
@@ -97,13 +99,15 @@ function summarizeDiff(before: Record<string, any> | null, after: Record<string,
 }
 
 async function maybeValidateScale(
-  payload: { arUrl?: string; widthCm?: number; depthCm?: number; heightCm?: number },
+  payload: { arUrl?: string | null; glbUrl?: string | null; widthCm?: number; depthCm?: number; heightCm?: number },
   tolerance: number,
 ) {
-  if (!payload.arUrl) return null;
+  const targetUrl = payload.glbUrl || payload.arUrl;
+  if (!targetUrl) return null;
   if (!payload.widthCm && !payload.depthCm && !payload.heightCm) return null;
+
   const result = await validateGlbScale({
-    file: payload.arUrl,
+    file: targetUrl,
     width: payload.widthCm,
     depth: payload.depthCm,
     height: payload.heightCm,
@@ -245,10 +249,8 @@ router.post("/bulk", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
   const id = Number(req.params.id);
-  console.log("[PUT /products/:id] Request body:", JSON.stringify(req.body, null, 2));
   const parsed = updateSchema.safeParse({ id, ...req.body });
   if (!parsed.success) {
-    console.log("[PUT /products/:id] Validation error:", JSON.stringify(parsed.error.flatten(), null, 2));
     return res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
   }
   const payload = parsed.data as any;
@@ -267,9 +269,7 @@ router.put("/:id", async (req, res) => {
 
     const previous = await prisma.product.findUnique({ where: { id: productId } });
     const validation = await maybeValidateScale(data, tolerance);
-    console.log("[PUT /products/:id] Scale validation result:", validation ? JSON.stringify(validation, null, 2) : "null");
     if (validation && !validation.result.ok) {
-      console.log("[PUT /products/:id] Scale validation FAILED, returning 400");
       return res.status(400).json({ error: "Scale validation failed", validation });
     }
     // @ts-ignore - data typed loosely

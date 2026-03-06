@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { requireRole, AuthenticatedRequest } from "../lib/auth.js";
 import { createImageTo3DTask, getTaskStatus, downloadGLB } from "../lib/meshy.js";
+import { TripoClient } from "../lib/tripo.js";
+import { uploadGLBToS3, uploadUSDZToS3 } from "../lib/s3.js";
 import { uploadGLB, isFileTooLargeError } from "../lib/cloudinary.js";
 import { validateGLBScale } from "../lib/glb-validator.js";
 import { compressGLB, getFileSizeInfo } from "../lib/glb-compressor.js";
@@ -15,10 +17,12 @@ const router = Router();
  */
 router.post("/generate", requireRole([Role.ADMIN, Role.STORE]), async (req: AuthenticatedRequest, res) => {
   try {
-    const { productId, imageUrl } = req.body;
+    const { productId, imageUrl, imageUrls, provider = "tripo" } = req.body;
 
-    if (!productId || !imageUrl) {
-      return res.status(400).json({ error: "productId and imageUrl are required" });
+    const finalUrls: string[] = imageUrls || (imageUrl ? [imageUrl] : []);
+
+    if (!productId || finalUrls.length === 0) {
+      return res.status(400).json({ error: "productId and at least one image url are required" });
     }
 
     // Verify product exists and user has access
@@ -40,19 +44,26 @@ router.post("/generate", requireRole([Role.ADMIN, Role.STORE]), async (req: Auth
     const job = await (prisma as any).aI3DJob.create({
       data: {
         productId: product.id,
-        imageUrl,
-        provider: "meshy",
+        imageUrl: finalUrls[0], // Keep for backwards compat
+        imageUrls: finalUrls,
+        provider,
         status: "PENDING",
       },
     });
 
-    // Start Meshy task (async)
+    // Start API task
     try {
-      const taskId = await createImageTo3DTask({
-        imageUrl,
-        enablePbr: true,
-        aiModel: "latest",
-      });
+      let taskId = "";
+      if (provider === "tripo") {
+        const tripo = new TripoClient();
+        taskId = await tripo.createMultiviewTask(finalUrls);
+      } else {
+        taskId = await createImageTo3DTask({
+          imageUrl: finalUrls[0],
+          enablePbr: true,
+          aiModel: "latest",
+        });
+      }
 
       await (prisma as any).aI3DJob.update({
         where: { id: job.id },
@@ -78,9 +89,9 @@ router.post("/generate", requireRole([Role.ADMIN, Role.STORE]), async (req: Auth
       });
       throw error;
     }
-  } catch (error) {
-    console.error("AI 3D generation error:", error);
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to start 3D generation" });
+  } catch (error: any) {
+    const errDetail = error?.response?.data ? JSON.stringify(error.response.data) : (error instanceof Error ? error.message : "Unknown");
+    return res.status(500).json({ error: errDetail });
   }
 });
 
@@ -118,12 +129,13 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
         productId: job.productId,
         status: job.status,
         glbUrl: job.glbUrl,
+        metadata: job.metadata,
         error: job.errorMsg,
         progress: job.status === "SUCCEEDED" ? 100 : 0,
       });
     }
 
-    // Query Meshy API for latest status
+    // Query API for latest status
     if (!job.taskId) {
       return res.json({
         id: job.id,
@@ -133,11 +145,40 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
       });
     }
 
-    const meshyStatus = await getTaskStatus(job.taskId);
+    let thirdPartyStatus: { status: string; progress: number; error?: string; model_urls?: { glb?: string; usdz?: string } } = {
+      status: "IN_PROGRESS",
+      progress: 0
+    };
+
+    if (job.provider === "tripo") {
+      const tripo = new TripoClient();
+      const tStatus = await tripo.getTaskStatus(job.taskId);
+
+      let mappedStatus = "IN_PROGRESS";
+      if (tStatus.status === "success") mappedStatus = "SUCCEEDED";
+      if (tStatus.status === "failed") mappedStatus = "FAILED";
+
+      thirdPartyStatus = {
+        status: mappedStatus,
+        progress: tStatus.progress || 0,
+        error: tStatus.message,
+        model_urls: tStatus.model ? { glb: tStatus.model } : undefined,
+      };
+    } else {
+      // Meshy fallback
+      const mStatus = await getTaskStatus(job.taskId);
+      thirdPartyStatus = {
+        status: mStatus.status,
+        progress: mStatus.progress,
+        error: mStatus.error,
+        model_urls: mStatus.model_urls,
+      };
+    }
 
     // Update job status
-    if (meshyStatus.status === "SUCCEEDED" && meshyStatus.model_urls?.glb) {
-      const tempGlbUrl = meshyStatus.model_urls.glb;
+    if (thirdPartyStatus.status === "SUCCEEDED" && thirdPartyStatus.model_urls?.glb) {
+      const tempGlbUrl = thirdPartyStatus.model_urls.glb;
+      const tempUsdzUrl = thirdPartyStatus.model_urls.usdz;
 
       // --- Production-ready flow: compress and upload to permanent storage ---
       try {
@@ -149,42 +190,75 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
         let compressedBuffer = await compressGLB(originalBuffer);
         let compressedSize = compressedBuffer.length;
         let sizeInfo = getFileSizeInfo(originalSize, compressedSize);
-        console.log(`GLB compressed for product ${job.productId}: ${sizeInfo.originalSizeMB}MB -> ${sizeInfo.compressedSizeMB}MB (${sizeInfo.reductionPercent}% reduction)`);
 
-        const uploadOptions = {
-          public_id: `product_${job.productId}_3d_model_${Date.now()}.glb`,
-          overwrite: true,
-          resource_type: "raw" as const,
-        };
+        // Use AWS S3 if configured, otherwise fallback to Cloudinary (or fail)
+        const fileKey = `product_${job.productId}_3d_model_${Date.now()}.glb`;
 
         let uploadResult: { url: string; publicId: string };
         try {
-          uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+          // If AWS is configured, use it
+          if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_BUCKET_NAME) {
+            uploadResult = await uploadGLBToS3(compressedBuffer, fileKey);
+          } else {
+            // Fallback to Cloudinary (legacy)
+            const uploadOptions = {
+              public_id: fileKey,
+              overwrite: true,
+              resource_type: "raw" as const,
+            };
+            uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+          }
         } catch (firstUploadError) {
+          // Only retry compression for Cloudinary size limits, as S3 has no such limit
           if (!isFileTooLargeError(firstUploadError)) throw firstUploadError;
+
           // Retry with maximum compression for scale (many models = avoid failures later)
-          console.log(`GLB for product ${job.productId} over size limit; retrying with max compression...`);
           compressedBuffer = await compressGLB(originalBuffer, { maxTextureSize: 128, maxCompression: true });
           compressedSize = compressedBuffer.length;
           sizeInfo = getFileSizeInfo(originalSize, compressedSize);
-          console.log(`GLB max-compressed: ${sizeInfo.originalSizeMB}MB -> ${sizeInfo.compressedSizeMB}MB`);
-          uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+
+          if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_BUCKET_NAME) {
+            uploadResult = await uploadGLBToS3(compressedBuffer, fileKey);
+          } else {
+            const uploadOptions = {
+              public_id: fileKey,
+              overwrite: true,
+              resource_type: "raw" as const,
+            };
+            uploadResult = await uploadGLB(compressedBuffer, uploadOptions);
+          }
         }
 
         const permanentGlbUrl = uploadResult.url;
+        let permanentUsdzUrl = "";
+
+        if (tempUsdzUrl && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_BUCKET_NAME) {
+          try {
+            // downloadGLB is just a generic buffer fetcher
+            const usdzBuffer = await downloadGLB(tempUsdzUrl);
+            const usdzKey = `product_${job.productId}_3d_model_${Date.now()}.usdz`;
+            const usdzUploadResult = await uploadUSDZToS3(usdzBuffer, usdzKey);
+            permanentUsdzUrl = usdzUploadResult.url;
+          } catch (usdzErr) {
+            console.error(`Failed to process USDZ for product ${job.productId}:`, usdzErr);
+          }
+        }
 
         // 3. Validate scale using buffer (optional but recommended)
         try {
           await validateGLBScale(compressedBuffer);
-          console.log(`Scale validation passed for GLB: ${permanentGlbUrl}`);
         } catch (scaleError) {
           console.warn(`Scale validation failed for ${permanentGlbUrl}:`, scaleError);
         }
 
         // 4. Update product and job with permanent URL
-        await prisma.product.update({
+        await (prisma.product.update as any)({
           where: { id: job.productId },
-          data: { arUrl: permanentGlbUrl },
+          data: {
+            arUrl: permanentGlbUrl,   // Keep arUrl as plain GLB URL for backward compat
+            glbUrl: permanentGlbUrl,
+            usdzUrl: permanentUsdzUrl || null,
+          },
         });
 
         await (prisma as any).aI3DJob.update({
@@ -193,8 +267,9 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
             status: "SUCCEEDED",
             glbUrl: permanentGlbUrl,
             metadata: {
-              ...meshyStatus,
+              ...thirdPartyStatus,
               ...sizeInfo,
+              usdzUrl: permanentUsdzUrl,
             } as any,
           },
         });
@@ -204,6 +279,11 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
           productId: job.productId,
           status: "SUCCEEDED",
           glbUrl: permanentGlbUrl,
+          metadata: {
+            ...thirdPartyStatus,
+            ...sizeInfo,
+            usdzUrl: permanentUsdzUrl,
+          },
           progress: 100,
         });
 
@@ -227,12 +307,12 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
         });
       }
 
-    } else if (meshyStatus.status === "FAILED") {
+    } else if (thirdPartyStatus.status === "FAILED") {
       await (prisma as any).aI3DJob.update({
         where: { id: job.id },
         data: {
           status: "FAILED",
-          errorMsg: meshyStatus.error || "Unknown error from Meshy",
+          errorMsg: thirdPartyStatus.error || "Unknown API error",
         },
       });
 
@@ -240,7 +320,7 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
         id: job.id,
         productId: job.productId,
         status: "FAILED",
-        error: meshyStatus.error,
+        error: thirdPartyStatus.error,
         progress: 0,
       });
     } else {
@@ -255,8 +335,8 @@ router.get("/jobs/:jobId/status", requireRole([Role.ADMIN, Role.STORE]), async (
       return res.json({
         id: job.id,
         productId: job.productId,
-        status: meshyStatus.status,
-        progress: meshyStatus.progress,
+        status: thirdPartyStatus.status,
+        progress: thirdPartyStatus.progress,
       });
     }
   } catch (error) {

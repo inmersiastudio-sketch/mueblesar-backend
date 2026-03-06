@@ -59,6 +59,7 @@ async function main() {
         stockQty: 18,
         featured: true,
         arUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
+        glbUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
       },
       {
         storeId: storeCasaLinda.id,
@@ -78,6 +79,7 @@ async function main() {
         stockQty: 12,
         featured: false,
         arUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
+        glbUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
       },
     ],
     skipDuplicates: true,

@@ -30,12 +30,14 @@ export type Product = {
   style: string;
   imageUrl?: string;
   arUrl?: string;
+  glbUrl?: string;
+  usdzUrl?: string;
   images?: ProductImage[];
   store?: Store;
   featured?: boolean;
   widthCm?: number;
   heightCm?: number;
-  depthCm?: number;  weightKg?: number;  material?: string;
+  depthCm?: number; weightKg?: number; material?: string;
   color?: string;              // CSS color name / hex or comma-separated list
   inStock?: boolean;           // availability flag
   stockQty?: number;           // quantity remaining, if known

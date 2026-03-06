@@ -1,25 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #20808d;
-  --color-primary-600: #1a6b76;
-  --color-primary-700: #145560;
-  --color-secondary: #d4613c;
+  /* Blue Primary Palette — Amobly brand */
+  --color-primary: #0058A3;        /* Main brand blue */
+  --color-primary-600: #004F93;    /* Darker blue for hover */
+  --color-primary-700: #003D73;    /* Even darker for active */
+  --color-primary-50: #EFF6FF;     /* Very light blue bg */
+  --color-primary-100: #DBEAFE;    /* Light blue */
+  --color-accent: #FFDB00;         /* Yellow accent for highlights */
+  --color-secondary: #FFDB00;      /* Secondary yellow */
   --color-whatsapp: #25d366;
+  --color-dark: #111111;           /* Near black for text */
 }
 
 @theme inline {
   --color-primary: var(--color-primary);
   --color-primary-600: var(--color-primary-600);
   --color-primary-700: var(--color-primary-700);
+  --color-primary-50: var(--color-primary-50);
+  --color-primary-100: var(--color-primary-100);
   --color-secondary: var(--color-secondary);
   --color-whatsapp: var(--color-whatsapp);
+  --color-dark: var(--color-dark);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: #ffffff;
+  color: #111111;
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }

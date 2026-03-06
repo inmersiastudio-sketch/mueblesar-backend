@@ -1,4 +1,5 @@
-import { Document } from "@gltf-transform/core";
+import { Document, Node } from "@gltf-transform/core";
+import { mat4, vec3 } from "gl-matrix";
 
 export interface GLBValidationResult {
   valid: boolean;
@@ -17,8 +18,11 @@ export interface GLBValidationResult {
  */
 export async function validateGLBScale(buffer: Buffer): Promise<GLBValidationResult> {
   try {
-    const { WebIO } = await import("@gltf-transform/core");
-    const io = new WebIO();
+    const { NodeIO } = await import("@gltf-transform/core");
+    const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
+    
+    // Use NodeIO for backend buffer processing
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
     const doc: Document = await io.readBinary(new Uint8Array(buffer));
 
     const root = doc.getRoot();
@@ -31,56 +35,73 @@ export async function validateGLBScale(buffer: Buffer): Promise<GLBValidationRes
       };
     }
 
-    // Calculate bounding box
-    let minX = Infinity,
-      minY = Infinity,
-      minZ = Infinity;
-    let maxX = -Infinity,
-      maxY = -Infinity,
-      maxZ = -Infinity;
+    // Reuse robust traversal logic (similar to scaleValidator)
+    let min = [Infinity, Infinity, Infinity];
+    let max = [-Infinity, -Infinity, -Infinity];
+    let hasValidMesh = false;
 
-    scene.listChildren().forEach((node) => {
+    const traverseNode = (node: Node, parentMatrix: mat4) => {
+      // 1. Calculate local matrix
+      const t = node.getTranslation();
+      const r = node.getRotation();
+      const s = node.getScale();
+      
+      const localMatrix = mat4.create();
+      mat4.fromRotationTranslationScale(localMatrix, r as [number,number,number,number], t as [number,number,number], s as [number,number,number]);
+      
+      const explicitMatrix = node.getMatrix();
+      if (explicitMatrix) {
+        mat4.copy(localMatrix, explicitMatrix as unknown as mat4);
+      }
+
+      // 2. World matrix
+      const worldMatrix = mat4.create();
+      mat4.multiply(worldMatrix, parentMatrix, localMatrix);
+
+      // 3. Process mesh
       const mesh = node.getMesh();
-      if (!mesh) return;
+      if (mesh) {
+        for (const prim of mesh.listPrimitives()) {
+          const pos = prim.getAttribute("POSITION");
+          if (!pos) continue;
 
-      mesh.listPrimitives().forEach((primitive) => {
-        const position = primitive.getAttribute("POSITION");
-        if (!position) return;
+          const count = pos.getCount();
+          const v = vec3.create();
+          const tPos = vec3.create();
 
-        const array = position.getArray();
-        if (!array) return;
-
-        for (let i = 0; i < array.length; i += 3) {
-          const x = array[i];
-          const y = array[i + 1];
-          const z = array[i + 2];
-
-          if (x !== undefined) {
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-          }
-          if (y !== undefined) {
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
-          }
-          if (z !== undefined) {
-            minZ = Math.min(minZ, z);
-            maxZ = Math.max(maxZ, z);
+          for (let i = 0; i < count; i++) {
+            pos.getElement(i, v as [number, number, number]);
+            vec3.transformMat4(tPos, v, worldMatrix);
+            
+            if (tPos[0] < min[0]) min[0] = tPos[0];
+            if (tPos[1] < min[1]) min[1] = tPos[1];
+            if (tPos[2] < min[2]) min[2] = tPos[2];
+            if (tPos[0] > max[0]) max[0] = tPos[0];
+            if (tPos[1] > max[1]) max[1] = tPos[1];
+            if (tPos[2] > max[2]) max[2] = tPos[2];
+            hasValidMesh = true;
           }
         }
-      });
-    });
+      }
 
-    if (!isFinite(minX) || !isFinite(maxX)) {
-      return {
-        valid: false,
-        errors: ["Could not calculate bounding box"],
-      };
+      // 4. Recurse
+      for (const child of node.listChildren()) {
+        traverseNode(child, worldMatrix);
+      }
+    };
+
+    const identity = mat4.create();
+    scene.listChildren().forEach((child) => traverseNode(child, identity));
+
+    if (!hasValidMesh) {
+       return { valid: false, errors: ["No mesh found in scene hierarchy"] };
     }
 
-    const width = maxX - minX;
-    const height = maxY - minY;
-    const depth = maxZ - minZ;
+    const width = max[0] - min[0];
+    const height = max[1] - min[1];
+    const depth = max[2] - min[2];
+    
+    // ... rest of validation ...
 
     const errors: string[] = [];
     const warnings: string[] = [];

@@ -5,9 +5,10 @@ import { FavoriteItem, useFavorites } from "../../lib/favorites";
 type Props = {
   product: FavoriteItem;
   size?: "sm" | "md";
+  className?: string;
 };
 
-export function FavoriteButton({ product, size = "md" }: Props) {
+export function FavoriteButton({ product, size = "md", className = "" }: Props) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const active = isFavorite(product.slug);
 
@@ -23,7 +24,7 @@ export function FavoriteButton({ product, size = "md" }: Props) {
       type="button"
       aria-pressed={active}
       aria-label={active ? "Quitar de favoritos" : "Agregar a favoritos"}
-      className={`${baseClasses} ${sizeClasses} ${colorClasses}`}
+      className={`${baseClasses} ${sizeClasses} ${colorClasses} ${className}`}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

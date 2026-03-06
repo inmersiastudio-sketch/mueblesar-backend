@@ -15,9 +15,9 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-primary text-white hover:bg-primary-600 active:bg-primary-700 focus-visible:outline-primary shadow-sm",
+    "bg-primary text-white hover:bg-primary-600 active:bg-primary-700 focus-visible:outline-primary shadow-sm font-bold",
   secondary:
-    "border border-primary text-primary hover:bg-primary/10 active:bg-primary/20 focus-visible:outline-primary",
+    "border-2 border-primary text-primary hover:bg-primary-50 active:bg-primary-100 focus-visible:outline-primary font-bold",
   whatsapp:
     "bg-whatsapp text-white hover:bg-whatsapp-600 active:bg-whatsapp-700 focus-visible:outline-whatsapp shadow-sm",
   ghost: "text-slate-700 hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-slate-400",

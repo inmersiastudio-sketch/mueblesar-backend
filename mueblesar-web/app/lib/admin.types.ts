@@ -9,6 +9,8 @@ export type Product = {
     room?: string | null;
     style?: string | null;
     arUrl?: string | null;
+    glbUrl?: string | null;
+    usdzUrl?: string | null;
     imageUrl?: string | null;
     widthCm?: number | null;
     depthCm?: number | null;
@@ -73,6 +75,8 @@ export type FormState = {
     featured: boolean;
     price: string;
     arUrl: string;
+    glbUrl: string;
+    usdzUrl: string;
     widthCm: string;
     depthCm: string;
     heightCm: string;
@@ -95,6 +99,8 @@ export const emptyForm: FormState = {
     featured: false,
     price: "",
     arUrl: "",
+    glbUrl: "",
+    usdzUrl: "",
     widthCm: "",
     depthCm: "",
     heightCm: "",
@@ -106,6 +112,19 @@ export const emptyForm: FormState = {
 
 export const isValidUrl = (value: string) => {
     if (!value) return false;
+
+    // Check if it's our new JSON payload format { glb: "...url...", usdz: "...url..." }
+    try {
+        const parsed = JSON.parse(value);
+        if (typeof parsed === "object" && parsed !== null && parsed.glb) {
+            new URL(parsed.glb); // strictly validate the inner URL
+            if (parsed.usdz) new URL(parsed.usdz);
+            return true;
+        }
+    } catch {
+        // Not a JSON string, fallback to standard plain string check
+    }
+
     try {
         new URL(value);
         return true;

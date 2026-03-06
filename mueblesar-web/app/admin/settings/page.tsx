@@ -1,23 +1,146 @@
 "use client";
 
-import { Container } from "../../components/layout/Container";
+import { useEffect, useState, useCallback } from "react";
+import { useAdmin } from "../layout";
+import { Settings, Save, Loader2, Store, Sliders, Globe } from "lucide-react";
 
 export default function SettingsPage() {
+    const { user, apiBase } = useAdmin();
+    const [settings, setSettings] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState<string | null>(null);
+
+    const loadSettings = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${apiBase}/api/admin/settings`, { credentials: "include" });
+            if (res.ok) {
+                const data = await res.json();
+                setSettings(data);
+            }
+        } catch { }
+        finally { setLoading(false); }
+    }, [apiBase]);
+
+    useEffect(() => { loadSettings(); }, [loadSettings]);
+
+    const saveSetting = async (key: string, value: string) => {
+        setSaving(key);
+        try {
+            await fetch(`${apiBase}/api/admin/settings`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ key, value }),
+            });
+            setSettings((prev) => ({ ...prev, [key]: value }));
+        } catch { }
+        finally { setSaving(null); }
+    };
+
     return (
-        <div className="py-10">
-            <Container>
-                <div className="mb-6 flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900">Configuración</h1>
-                            <p className="text-sm text-slate-600">Ajustes de la cuenta y preferencias.</p>
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-extrabold text-slate-900">Configuración</h1>
+                <p className="text-sm text-slate-500 mt-0.5">Ajustes generales de la plataforma y tu tienda</p>
+            </div>
+
+            {loading ? (
+                <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="rounded-2xl border border-slate-200 bg-white p-6 animate-pulse">
+                            <div className="h-4 w-40 bg-slate-200 rounded mb-4" />
+                            <div className="h-10 w-full bg-slate-100 rounded-xl" />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {/* AR Tolerance */}
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-[#0058a3]/10 flex items-center justify-center">
+                                <Sliders size={18} className="text-[#0058a3]" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900">Validación de modelos AR</h3>
+                                <p className="text-xs text-slate-500">Tolerancia de escala para la validación automática</p>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4">
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Tolerancia (0–1)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        value={settings.tolerance ?? "0.05"}
+                                        onChange={(e) => setSettings((s) => ({ ...s, tolerance: e.target.value }))}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all"
+                                    />
+                                    <p className="text-[11px] text-slate-500 mt-1">
+                                        Valores más altos permiten mayor diferencia entre las dimensiones del producto y el modelo 3D.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => saveSetting("tolerance", settings.tolerance ?? "0.05")}
+                                    disabled={saving === "tolerance"}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors disabled:opacity-50"
+                                >
+                                    {saving === "tolerance" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    Guardar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Store Profile — placeholder for Phase 3 */}
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                                <Store size={18} className="text-emerald-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900">Perfil de tu tienda</h3>
+                                <p className="text-xs text-slate-500">Nombre, logo, WhatsApp y dirección</p>
+                            </div>
+                        </div>
+                        <div className="px-6 py-8 flex flex-col items-center text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                                <Store size={24} className="text-slate-400" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-900 mb-1">Próximamente</p>
+                            <p className="text-xs text-slate-500 max-w-xs">
+                                Vas a poder personalizar el perfil público de tu mueblería: logo, colores, descripción y datos de contacto.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Integrations — placeholder */}
+                    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                                <Globe size={18} className="text-violet-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900">Integraciones</h3>
+                                <p className="text-xs text-slate-500">WhatsApp Business, Google Analytics, API Keys</p>
+                            </div>
+                        </div>
+                        <div className="px-6 py-8 flex flex-col items-center text-center">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                                <Globe size={24} className="text-slate-400" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-900 mb-1">Próximamente</p>
+                            <p className="text-xs text-slate-500 max-w-xs">
+                                Conectá tu mueblería con WhatsApp Business, Google Analytics y generá API Keys propias.
+                            </p>
                         </div>
                     </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <p className="text-sm text-slate-500">Próximamente: Ajustes de tienda y facturación.</p>
-                </div>
-            </Container>
+            )}
         </div>
     );
 }

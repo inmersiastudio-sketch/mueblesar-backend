@@ -14,9 +14,11 @@ type Props = {
   initialColor?: string | null;
   fallbackColor?: string | null;
   arUrl?: string;
+  glbUrl?: string;
+  usdzUrl?: string;
 };
 
-export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, arUrl }: Props) {
+export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, arUrl, glbUrl, usdzUrl }: Props) {
   // group images by type/color; untyped images go into "__default" group
   const groups = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -64,7 +66,7 @@ export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, a
           ))}
         </div>
       )}
-      <ImageCarousel images={carouselImages} alt={alt} arUrl={arUrl} />
+      <ImageCarousel images={carouselImages} alt={alt} arUrl={arUrl} glbUrl={glbUrl} usdzUrl={usdzUrl} />
     </div>
   );
 }

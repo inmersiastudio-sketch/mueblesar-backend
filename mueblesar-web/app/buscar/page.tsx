@@ -8,14 +8,21 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ProductCard } from "../components/products/ProductCard";
 import { fetchProducts, fetchStores } from "../lib/api";
+import { VisualCategoryFilter } from "../components/filters/VisualCategoryFilter";
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string }> }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
-  const hasQuery = query.length > 0;
+  const category = params.category;
+  
+  // Also consider showing result if category is selected, even without query text
+  const hasQuery = query.length > 0 || !!category;
 
   const [productsRes, storesRes] = hasQuery
-    ? await Promise.all([fetchProducts({ q: query }), fetchStores({ q: query })])
+    ? await Promise.all([
+        fetchProducts({ q: query, category }),
+        fetchStores({ q: query }), // Stores might not filter by product category easily unless improved backend
+      ])
     : [
         { items: [], total: 0 },
         { items: [], total: 0 },
@@ -27,11 +34,21 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   return (
     <div className="py-10">
       <Container>
-        <div className="flex flex-col gap-3 pb-6">
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">Buscar</p>
-          <h1 className="text-3xl font-bold text-slate-900">Encontrá tu mueble</h1>
+        <div className="flex flex-col gap-6 pb-6">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary">Catálogo</p>
+            <h1 className="text-3xl font-bold text-slate-900">Encontrá tu mueble ideal</h1>
+          </div>
+          
+          {/* Visual Category Filter (Blueprint Style) */}
+          <VisualCategoryFilter />
+
           <form className="flex max-w-xl gap-3" method="get">
             <Input name="q" defaultValue={query} placeholder="Ej: sofá gris, mesa roble" />
+            
+            {/* Preserve category during text search if desired, or simpler: reset category on new text search */}
+            {category && <input type="hidden" name="category" value={category} />}
+            
             <Button type="submit" className="shrink-0">
               Buscar
             </Button>
@@ -44,7 +61,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               <div className="flex items-baseline justify-between gap-2">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-primary">Productos</p>
-                  <h2 className="text-2xl font-semibold text-slate-900">Resultados para "{query}"</h2>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    {category ? `Categoría: ${category}` : `Resultados para "${query}"`}
+                  </h2>
                 </div>
                 <div className="text-sm text-slate-600">{productsRes.total} encontrados</div>
               </div>

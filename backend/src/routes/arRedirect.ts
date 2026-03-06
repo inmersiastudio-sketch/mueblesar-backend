@@ -14,27 +14,27 @@ router.get("/:productId", async (req, res) => {
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, name: true, arUrl: true },
+      select: { id: true, name: true, arUrl: true, glbUrl: true, usdzUrl: true },
     });
 
-    if (!product || !product.arUrl) {
+    if (!product || (!product.glbUrl && !product.arUrl)) {
       return res.status(404).send("Product or AR model not found");
     }
 
-    // For Scene Viewer, use DIRECT Meshy URL (Google servers can access it)
-    // No proxy needed because Scene Viewer downloads server-side, not client-side
-    const arUrl = product.arUrl;
+    const glbUrl = product.glbUrl || product.arUrl;
+    const usdzUrl = product.usdzUrl || null;
 
     // Redirect to the AR page with clean params
     const siteUrl = env.SITE_URL || "http://localhost:3000";
     const redirectUrl = new URL(`${siteUrl}/ar`);
-    redirectUrl.searchParams.set("glb", arUrl); // Direct URL for Scene Viewer
-    redirectUrl.searchParams.set("title", product.name);
+    redirectUrl.searchParams.set("glb", glbUrl); // Direct URL for Scene Viewer
+
+    // Sanitize product name to prevent XSS (Finding 3 from Code Review)
+    redirectUrl.searchParams.set("title", encodeURIComponent(product.name));
+
+    if (usdzUrl) redirectUrl.searchParams.set("usdz", usdzUrl);
 
     const finalUrl = redirectUrl.toString();
-    console.log(`[AR Redirect] Product ${productId} (${product.name})`);
-    console.log(`[AR Redirect] AR URL: ${arUrl}`);
-    console.log(`[AR Redirect] Redirect to: ${finalUrl}`);
 
     return res.redirect(finalUrl);
   } catch (err) {

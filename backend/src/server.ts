@@ -12,6 +12,7 @@ import adminProductsRouter from "./routes/adminProducts.js";
 import authRouter from "./routes/auth.js";
 import adminStatsRouter from "./routes/adminStats.js";
 import adminSettingsRouter from "./routes/adminSettings.js";
+import adminOrdersRouter from "./routes/adminOrders.js";
 import eventsRouter from "./routes/events.js";
 import uploadRouter from "./routes/upload.js";
 import ai3dRouter from "./routes/ai3d.js";
@@ -19,6 +20,7 @@ import proxyRouter from "./routes/proxy.js";
 import arRedirectRouter from "./routes/arRedirect.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { redis } from "./lib/redis.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 export function createServer() {
   const app = express();
@@ -48,6 +50,7 @@ export function createServer() {
   );
   app.use(express.json());
   app.use(cookieParser());
+  
   // Pretty logs en desarrollo, JSON en producción
   const isDev = process.env.NODE_ENV !== "production";
   const logger = isDev
@@ -65,12 +68,14 @@ export function createServer() {
 
   app.use(publicLimiter);
 
+  // ── API Routes ──────────────────────────────────────────────
   app.use("/api/products", productsRouter);
   app.use("/api/stores", storesRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/admin/products", adminProductsRouter);
   app.use("/api/admin/stats", adminStatsRouter);
   app.use("/api/admin/settings", adminSettingsRouter);
+  app.use("/api/admin/orders", adminOrdersRouter);
   app.use("/api/admin/ai-3d", ai3dRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/proxy", proxyRouter);
@@ -79,33 +84,13 @@ export function createServer() {
   app.use("/api/ar", arRouter);
   app.use(openapiRouter);
 
+  // ── 404 Handler ─────────────────────────────────────────────
   app.use((req, res) => {
     res.status(404).json({ error: "Not found", path: req.path });
   });
 
-  // Manejador Global de Errores (debe ir al final de todos los routes/middlewares)
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // Si se está usando pino-http, loguear el error con contexto
-    if (req.log) {
-      req.log.error({ err }, "Unhandled application error");
-    } else {
-      console.error("Unhandled application error", err);
-    }
-
-    // Si la respuesta ya fue enviada fallar silenciosamente
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    const statusCode = err.status || err.statusCode || 500;
-    const isDev = process.env.NODE_ENV !== "production";
-
-    res.status(statusCode).json({
-      error: "Internal Server Error",
-      message: isDev ? err.message : "Algo salió mal en el servidor",
-      ...(isDev && { stack: err.stack }),
-    });
-  });
+  // ── Global Error Handler (MUST be last) ─────────────────────
+  app.use(errorHandler);
 
   return app;
 }

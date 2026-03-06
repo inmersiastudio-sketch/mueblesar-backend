@@ -1,0 +1,343 @@
+import crypto from 'crypto';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
+import { env } from '../config/env.js';
+import { Errors } from '../errors/AppError.js';
+import {
+  hashPassword,
+  verifyPassword,
+  signUser,
+  publicUser,
+} from '../lib/auth.js';
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendWelcomeEmail,
+} from '../lib/email.js';
+import type {
+  AuthUser,
+  PublicUser,
+  StoreRegistrationData,
+  RegistrationResult,
+} from '../types/auth.js';
+import type { LoginInput, RegisterInput, ResetPasswordInput } from '../schemas/auth.js';
+
+/**
+ * AuthService - Business Logic Layer for Authentication
+ * Handles all auth operations, database transactions, and external integrations
+ */
+
+export class AuthService {
+  /**
+   * Authenticate user with email and password
+   */
+  async login(data: LoginInput): Promise<{ user: PublicUser; token: string }> {
+    const user = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (!user) {
+      throw Errors.unauthorized('Email o contraseña incorrectos');
+    }
+
+    const isValidPassword = await verifyPassword(data.password, user.passwordHash);
+    if (!isValidPassword) {
+      throw Errors.unauthorized('Email o contraseña incorrectos');
+    }
+
+    // Block login if email not verified (except ADMIN)
+    if (!user.emailVerified && user.role !== Role.ADMIN) {
+      throw new (await import('../errors/AppError.js')).AppError({
+        code: (await import('../errors/AppError.js')).ErrorCode.EMAIL_NOT_VERIFIED,
+        message: 'Verificá tu email antes de iniciar sesión. Revisá tu bandeja de entrada.',
+        statusCode: 403,
+        details: { code: 'EMAIL_NOT_VERIFIED' },
+      });
+    }
+
+    const token = signUser({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      storeId: user.storeId,
+      name: user.name,
+    });
+
+    return { user: publicUser(user), token };
+  }
+
+  /**
+   * Register a new user (admin-only after first user)
+   */
+  async register(data: RegisterInput, requester?: AuthUser | null): Promise<PublicUser> {
+    // Validate store role requirements
+    if (data.role === Role.STORE && data.storeId === undefined) {
+      throw Errors.validation('storeId requerido para usuarios de tienda');
+    }
+
+    const passwordHash = await hashPassword(data.password);
+
+    // Try to create first admin atomically
+    try {
+      const user = await prisma.$transaction(async (tx) => {
+        const count = await tx.user.count();
+        if (count > 0) {
+          return null; // Not first user
+        }
+        return tx.user.create({
+          data: {
+            email: data.email,
+            name: data.name,
+            passwordHash,
+            role: Role.ADMIN,
+            emailVerified: true,
+          },
+        });
+      });
+
+      if (user) {
+        return publicUser(user);
+      }
+    } catch (err: unknown) {
+      // Only ignore unique constraint violations (concurrent bootstrap race)
+      const prismaError = err as { code?: string; meta?: { target?: string[] } };
+      const isPrismaUniqueViolation = prismaError?.code === 'P2002' || prismaError?.meta?.target;
+      if (!isPrismaUniqueViolation) throw err;
+    }
+
+    // Existing system - require admin authentication
+    if (!requester || requester.role !== Role.ADMIN) {
+      throw Errors.forbidden('Solo administradores pueden crear usuarios');
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        name: data.name,
+        passwordHash,
+        role: data.role,
+        storeId: data.storeId,
+        emailVerified: data.role === Role.ADMIN,
+      },
+    });
+
+    return publicUser(user);
+  }
+
+  /**
+   * Register a new store with owner
+   */
+  async registerStore(data: StoreRegistrationData): Promise<RegistrationResult> {
+    // Check if email already exists
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existing) {
+      throw Errors.conflict('El email ya está registrado');
+    }
+
+    // Generate unique slug from store name
+    const slug = await this.generateUniqueSlug(data.name);
+
+    // Create store + user in transaction
+    const passwordHash = await hashPassword(data.password);
+    const result = await prisma.$transaction(async (tx) => {
+      const store = await tx.store.create({
+        data: {
+          name: data.name,
+          slug,
+          whatsapp: data.whatsapp,
+          address: data.address,
+          description: data.description,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          name: data.ownerName,
+          passwordHash,
+          role: Role.STORE,
+          storeId: store.id,
+          emailVerified: false,
+        },
+      });
+
+      return { store, user };
+    });
+
+    // Send verification email
+    await this.createAndSendVerificationToken(
+      result.user.id,
+      result.user.email,
+      result.user.name
+    );
+
+    return {
+      user: publicUser(result.user),
+      store: {
+        id: result.store.id,
+        name: result.store.name,
+        slug: result.store.slug,
+      },
+      requiresVerification: true,
+      message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.',
+    };
+  }
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token: string): Promise<void> {
+    const verificationToken = await prisma.emailVerificationToken.findUnique({
+      where: { token },
+      include: { user: { include: { store: true } } },
+    });
+
+    if (!verificationToken || verificationToken.expiresAt < new Date()) {
+      throw Errors.tokenInvalid('Token inválido o expirado');
+    }
+
+    // Mark email as verified
+    await prisma.user.update({
+      where: { id: verificationToken.userId },
+      data: { emailVerified: true },
+    });
+
+    // Clean up used token
+    await prisma.emailVerificationToken.deleteMany({
+      where: { userId: verificationToken.userId },
+    });
+
+    // Send welcome email
+    const siteUrl = env.SITE_URL || 'http://localhost:3000';
+    const storeName = verificationToken.user.store?.name || 'tu mueblería';
+    await sendWelcomeEmail(
+      verificationToken.user.email,
+      storeName,
+      `${siteUrl}/admin`
+    );
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerification(email: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always succeed to prevent email enumeration
+    if (!user || user.emailVerified) {
+      return;
+    }
+
+    await this.createAndSendVerificationToken(user.id, user.email, user.name);
+  }
+
+  /**
+   * Request password reset
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always succeed to prevent email enumeration
+    if (!user) {
+      return;
+    }
+
+    // Invalidate old tokens
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    });
+
+    // Generate new token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt },
+    });
+
+    // Send email
+    const siteUrl = env.SITE_URL || 'http://localhost:3000';
+    const resetUrl = `${siteUrl}/resetear-contrasena?token=${token}`;
+    await sendPasswordResetEmail(user.email, resetUrl, user.name ?? undefined);
+  }
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(data: ResetPasswordInput): Promise<void> {
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token: data.token },
+    });
+
+    if (!resetToken || resetToken.used || resetToken.expiresAt < new Date()) {
+      throw Errors.tokenInvalid('Token inválido o expirado');
+    }
+
+    // Update password
+    const passwordHash = await hashPassword(data.password);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { used: true },
+      }),
+    ]);
+  }
+
+  /**
+   * Helper: Generate unique slug for store
+   */
+  private async generateUniqueSlug(name: string): Promise<string> {
+    const baseSlug = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    let slug = baseSlug;
+    let counter = 1;
+
+    while (await prisma.store.findUnique({ where: { slug } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    return slug;
+  }
+
+  /**
+   * Helper: Create and send verification token
+   */
+  private async createAndSendVerificationToken(
+    userId: number,
+    email: string,
+    name?: string | null
+  ): Promise<string> {
+    // Invalidate old tokens
+    await prisma.emailVerificationToken.deleteMany({ where: { userId } });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await prisma.emailVerificationToken.create({
+      data: { userId, token, expiresAt },
+    });
+
+    const siteUrl = env.SITE_URL || 'http://localhost:3000';
+    const verifyUrl = `${siteUrl}/verificar-email?token=${token}`;
+    await sendVerificationEmail(email, verifyUrl, name ?? undefined);
+
+    return token;
+  }
+}
+
+// Export singleton instance
+export const authService = new AuthService();

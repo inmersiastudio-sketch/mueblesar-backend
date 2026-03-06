@@ -8,7 +8,7 @@ const router = Router();
 
 const bodySchema = z
   .object({
-    file: z.string().url(),
+    file: z.string().min(1),
     widthCm: z.number().optional(),
     depthCm: z.number().optional(),
     heightCm: z.number().optional(),

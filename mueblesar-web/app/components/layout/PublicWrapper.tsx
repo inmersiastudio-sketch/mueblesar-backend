@@ -9,8 +9,9 @@ import { FloatingCartButton } from "../cart/FloatingCartButton";
 export function PublicWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isAdminRoute = pathname?.startsWith("/admin");
+    const isAuthRoute = pathname?.startsWith("/login") || pathname?.startsWith("/registrar") || pathname?.startsWith("/verificar-email");
 
-    if (isAdminRoute) {
+    if (isAdminRoute || isAuthRoute) {
         return <main>{children}</main>;
     }
 

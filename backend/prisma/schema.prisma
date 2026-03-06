@@ -14,7 +14,10 @@ enum Role {
 
 enum OrderStatus {
   PENDING
+  CONFIRMED
   PAID
+  SHIPPED
+  DELIVERED
   CANCELED
 }
 
@@ -35,6 +38,7 @@ model Store {
   address          String?
   ai3dCredits      Int              @default(3) // Free credits for new stores
   ai3dUsed         Int              @default(0) // Total models generated
+  maxProducts      Int              @default(20) // Product limit per plan
   subscriptionTier String?          @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
   createdAt        DateTime         @default(now())
   products         Product[]
@@ -77,6 +81,8 @@ model Product {
   material    String?
   color       String?
   arUrl       String?
+  glbUrl      String?   // GLB model URL for Android/desktop AR
+  usdzUrl     String?   // USDZ model URL for iOS AR Quick Look
   imageUrl    String?
   inStock     Boolean        @default(true)
   stockQty    Int            @default(0)
@@ -100,17 +106,24 @@ model ProductImage {
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  storeId   Int
-  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId    Int?
-  status    OrderStatus @default(PAID)
-  total     Decimal     @db.Decimal(12, 2)
-  customer  String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  items     OrderItem[]
+  id            Int         @id @default(autoincrement())
+  store         Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId       Int
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId        Int?
+  status        OrderStatus @default(PENDING)
+  total         Decimal     @db.Decimal(12, 2)
+  customer      String?
+  customerPhone String?
+  customerEmail String?
+  notes         String?     // Internal notes for store staff
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -139,17 +152,19 @@ model ArView {
 }
 
 model User {
-  id           Int                  @id @default(autoincrement())
-  email        String               @unique
-  name         String?
-  passwordHash String
-  role         Role                 @default(STORE)
-  storeId      Int?
-  store        Store?               @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  orders       Order[]
-  resetTokens  PasswordResetToken[]
+  id               Int                      @id @default(autoincrement())
+  email            String                   @unique
+  name             String?
+  passwordHash     String
+  role             Role                     @default(STORE)
+  emailVerified    Boolean                  @default(false)
+  storeId          Int?
+  store            Store?                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  orders           Order[]
+  resetTokens      PasswordResetToken[]
+  verificationTokens EmailVerificationToken[]
 }
 
 model PasswordResetToken {
@@ -160,6 +175,18 @@ model PasswordResetToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
   used      Boolean  @default(false)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([token])
   @@index([userId])
@@ -176,6 +203,7 @@ model AI3DJob {
   id        Int           @id @default(autoincrement())
   productId Int
   imageUrl  String
+  imageUrls Json?         // Array of images for multi-view generation
   provider  String        @default("meshy") // meshy, luma, tripo, etc
   taskId    String? // ID del task en el proveedor
   status    AI3DJobStatus @default(PENDING)

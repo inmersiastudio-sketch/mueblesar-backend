@@ -10,7 +10,7 @@ app.listen(port, "0.0.0.0", async () => {
   console.log(`[backend] listening on port ${port}`);
   console.log(`[backend] accessible at http://localhost:${port}`);
   console.log(`[backend] for mobile AR, use your local IP: http://YOUR_LOCAL_IP:${port}`);
-  
+
   // Auto-seed database if needed (runs once on first start)
   await runAutoSeed();
 });

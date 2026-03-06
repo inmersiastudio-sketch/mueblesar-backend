@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { FavoriteButton } from "../favorites/FavoriteButton";
 import { AddToCartButton } from "../cart/AddToCartButton";
@@ -17,11 +16,15 @@ export type ProductCardData = {
   style?: string;
   imageUrl?: string;
   arUrl?: string;
-  images?: { url: string; type?: string }[]; // include type for color grouping
+  images?: { url: string; type?: string }[];
   store?: { name?: string; slug?: string };
-  color?: string;             // same format as API
-  inStock?: boolean;          // for showing availability badge
+  color?: string;
+  inStock?: boolean;
   stockQty?: number;
+  featured?: boolean;
+  widthCm?: number;
+  heightCm?: number;
+  depthCm?: number;
 };
 
 type Props = {
@@ -31,33 +34,47 @@ type Props = {
 export function ProductCard({ product }: Props) {
   const image = product.images?.[0]?.url ?? product.imageUrl;
   const price = typeof product.price === "string" ? Number(product.price) : product.price;
-  const swatchColors = useMemo<string[]>(() => {
-    const set = new Set<string>();
-    if (product.color) {
-      product.color.split(",").forEach((c) => set.add(c.trim()));
-    }
-    product.images?.forEach((i) => {
-      if (i.type) set.add(i.type);
-    });
-    return Array.from(set);
-  }, [product.color, product.images]);
-
-  const track = (name: string, props?: Record<string, unknown>) => {
-    try {
-      window.dispatchEvent(new CustomEvent("ar-event", { detail: { name, props } }));
-    } catch (e) {
-      // ignore
-    }
-    console.info("[analytics]", name, props ?? {});
-  };
 
   return (
-    <Link
-      href={`/productos/${product.slug}`}
-      onClick={() => track("card_click", { slug: product.slug, hasAr: Boolean(product.arUrl), store: product.store?.slug })}
-      className="group relative flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-    >
-      <div className="absolute right-3 top-3 z-10 flex gap-2">
+    <article className="group relative flex flex-col">
+      {/* Image Container */}
+      <Link
+        href={`/productos/${product.slug}`}
+        className="relative aspect-square w-full overflow-hidden bg-gray-100"
+      >
+        {image ? (
+          <img
+            src={image}
+            alt={product.name}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-gray-400">
+            Sin imagen
+          </div>
+        )}
+
+        {/* AR Badge */}
+        {product.arUrl && (
+          <span className="absolute top-3 left-3 bg-black text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1">
+            Ver en AR
+          </span>
+        )}
+
+        {/* Out of Stock Badge */}
+        {product.inStock === false && (
+          <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+            <span className="bg-gray-900 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+              Agotado
+            </span>
+          </div>
+        )}
+      </Link>
+
+      {/* Quick Actions - Appear on Hover */}
+      <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <AddToCartButton
           product={{
             id: product.id,
@@ -89,46 +106,45 @@ export function ProductCard({ product }: Props) {
         />
       </div>
 
-      <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-50">
-        {image ? (
-          <img
-            src={image}
-            alt={product.name}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">Sin imagen</div>
+      {/* Product Info */}
+      <div className="flex flex-col pt-3 pb-2">
+        {/* Store Name */}
+        {product.store?.name && (
+          <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide mb-0.5">
+            {product.store.name}
+          </span>
+        )}
+
+        {/* Product Name */}
+        <Link href={`/productos/${product.slug}`}>
+          <h3 className="text-sm font-bold text-gray-900 leading-tight hover:underline line-clamp-2">
+            {product.name}
+          </h3>
+        </Link>
+
+        {/* Brief Description */}
+        {product.description && (
+          <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+            {product.description}
+          </p>
+        )}
+
+        {/* Price */}
+        <div className="mt-2">
+          <span className="text-lg font-bold text-gray-900">
+            ${price?.toLocaleString("es-AR")}
+          </span>
+        </div>
+
+        {/* Category Tag */}
+        {product.category && (
+          <div className="mt-2">
+            <span className="inline-block bg-primary/20 text-gray-900 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+              {product.category}
+            </span>
+          </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-2 text-xs uppercase tracking-wide text-slate-600">
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{product.category ?? "Categoría"}</span>
-        {product.style && <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{product.style}</span>}
-        {product.store?.name && <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">{product.store.name}</span>}
-        {product.arUrl && <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">AR disponible</span>}
-      </div>
-      <h3 className="text-lg font-semibold text-slate-900 flex items-center justify-between">
-        {product.name}
-        {product.inStock === false && <span className="ml-2 text-xs font-semibold text-red-600">Agotado</span>}
-      </h3>
-      {swatchColors.length > 0 && (
-        <div className="flex items-center gap-1 mt-1">
-          {swatchColors.map((c: string, i: number) => (
-            <span
-              key={i}
-              className="inline-block h-4 w-4 rounded-full border"
-              style={{ backgroundColor: c }}
-              title={c}
-            />
-          ))}
-        </div>
-      )}
-      <p className="line-clamp-2 text-sm text-slate-700">{product.description}</p>
-      <div className="flex items-center justify-between pt-2 text-base font-semibold text-primary">
-        ${price?.toLocaleString("es-AR")}
-        <span className="text-xs uppercase text-slate-500">{product.room ?? ""}</span>
-      </div>
-    </Link>
+    </article>
   );
 }

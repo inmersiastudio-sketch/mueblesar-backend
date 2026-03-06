@@ -19,6 +19,10 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: "Amobly",
   description: "Catálogo de mueblerías de Córdoba con realidad aumentada",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -15,12 +15,15 @@ type Props = {
   images: string[];
   alt: string;
   arUrl?: string;
+  glbUrl?: string;
+  usdzUrl?: string;
 };
 
-export function ImageCarousel({ images, alt, arUrl }: Props) {
+export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl: propUsdzUrl }: Props) {
   const safeImages = useMemo(() => (images.length > 0 ? images : []), [images]);
   const [index, setIndex] = useState(0);
-  const [viewMode, setViewMode] = useState<"2d" | "3d">(arUrl ? "3d" : "2d");
+  const hasAr = !!(propGlbUrl || propUsdzUrl || arUrl);
+  const [viewMode, setViewMode] = useState<"2d" | "3d">(hasAr ? "3d" : "2d");
 
   // Load model-viewer script only when needed
   useEffect(() => {
@@ -37,19 +40,40 @@ export function ImageCarousel({ images, alt, arUrl }: Props) {
   // Derived URLs for model viewer
   const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001", []);
   const { glbUrl, iosUrl } = useMemo(() => {
-    if (!arUrl) return {};
-    const lower = arUrl.toLowerCase();
-    const glb = lower.includes(".glb") ? arUrl : undefined;
+    // Use new separate fields first, fallback to arUrl for backward compatibility
+    let parsedGlb = propGlbUrl || arUrl || "";
+    let parsedUsdz = propUsdzUrl;
+
+    // Check if arUrl (legacy) is still in the old dual-format JSON string from the backend
+    if (!propGlbUrl && arUrl) {
+      try {
+        const obj = JSON.parse(arUrl);
+        if (typeof obj === "object" && obj !== null && obj.glb) {
+          parsedGlb = obj.glb;
+          if (obj.usdz) parsedUsdz = obj.usdz;
+        }
+      } catch {
+        // It's a standard string, proceed normally
+      }
+    }
+
+    const lower = parsedGlb.toLowerCase();
+    const glb = lower.includes(".glb") ? parsedGlb : undefined;
     const isMeshy = glb?.includes("meshy.ai");
     const proxiedGlb = glb && isMeshy
       ? `${apiBase}/api/proxy/glb?url=${encodeURIComponent(glb)}`
       : glb;
-    const iosCandidate = glb ? arUrl.replace(/\.glb(\?.*)?$/, ".usdz$1") : arUrl.endsWith(".usdz") ? arUrl : undefined;
+
+    let iosCandidate = parsedUsdz;
+    if (!iosCandidate) {
+      iosCandidate = glb ? parsedGlb.replace(/\.glb(\?.*)?$/, ".usdz$1") : parsedGlb.endsWith(".usdz") ? parsedGlb : undefined;
+    }
+
     return {
-      glbUrl: proxiedGlb ?? arUrl,
+      glbUrl: proxiedGlb ?? parsedGlb,
       iosUrl: iosCandidate,
     };
-  }, [arUrl, apiBase]);
+  }, [arUrl, propGlbUrl, propUsdzUrl, apiBase]);
 
   if (safeImages.length === 0) {
     return <div className="flex h-full items-center justify-center bg-slate-50 text-sm text-slate-500">Sin imagen</div>;
@@ -60,7 +84,7 @@ export function ImageCarousel({ images, alt, arUrl }: Props) {
 
   return (
     <div className="space-y-4">
-      {arUrl && (
+      {hasAr && (
         <div className="flex justify-center">
           <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
             <button

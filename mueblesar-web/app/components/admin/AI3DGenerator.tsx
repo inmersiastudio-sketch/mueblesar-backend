@@ -9,23 +9,30 @@ interface AI3DGeneratorProps {
   productName: string;
   currentImageUrl?: string | null;
   currentArUrl?: string | null;
-  onSuccess?: (glbUrl: string) => void;
+  currentGlbUrl?: string | null;
+  currentUsdzUrl?: string | null;
+  onSuccess?: (glbUrl: string, usdzUrl?: string) => void;
 }
-
 interface GenerationJob {
   id: number;
   productId: number;
   status: "PENDING" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
   progress?: number;
   glbUrl?: string;
+  metadata?: {
+    usdzUrl?: string; // added to capture the apple format from the backend
+    [key: string]: any;
+  };
   error?: string;
 }
 
-export function AI3DGenerator({ productId, productName, currentImageUrl, currentArUrl, onSuccess }: AI3DGeneratorProps) {
-  const [imageUrl, setImageUrl] = useState(currentImageUrl || "");
+export function AI3DGenerator({ productId, productName, currentImageUrl, currentArUrl, currentGlbUrl, currentUsdzUrl, onSuccess }: AI3DGeneratorProps) {
+  const [imageUrls, setImageUrls] = useState<string[]>(currentImageUrl ? [currentImageUrl] : []);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001";
 
@@ -70,7 +77,10 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         if (data.status === "SUCCEEDED") {
           clearInterval(interval);
           if (onSuccess && data.glbUrl) {
-            onSuccess(data.glbUrl);
+            // Check if backend provided the usdz URL within metadata
+            const usdzUrl = data.metadata?.usdzUrl;
+            // Pass both URLs separately instead of JSON string
+            onSuccess(data.glbUrl, usdzUrl);
           }
         } else if (data.status === "FAILED") {
           clearInterval(interval);
@@ -93,9 +103,48 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
     return () => clearInterval(interval);
   }, [job, apiBase, onSuccess]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (imageUrls.length >= 3) {
+      setError("Solo se permiten hasta 3 imágenes.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${apiBase}/api/upload/image`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error("Error al subir la imagen");
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        setImageUrls(prev => [...prev, data.url]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido al subir archivo");
+    } finally {
+      setUploadingImage(false);
+      // Reset input value to allow selecting the same file again if needed
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleGenerate = async () => {
-    if (!imageUrl) {
-      setError("Indica la URL de la imagen");
+    const validUrls = imageUrls.filter(url => url.trim() !== "");
+    if (validUrls.length === 0) {
+      setError("Indica al menos una URL de imagen");
       return;
     }
 
@@ -110,7 +159,8 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         credentials: "include",
         body: JSON.stringify({
           productId,
-          imageUrl,
+          provider: "meshy",
+          imageUrls: validUrls,
         }),
       });
 
@@ -218,7 +268,32 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         <p className="text-sm text-slate-600">Generate a 3D model from a product image using AI</p>
       </div>
 
-      {currentArUrl && (
+      {currentGlbUrl && (
+        <div className="rounded border border-green-200 bg-green-50 p-3">
+          <p className="text-sm text-green-800">
+            ✅ This product already has a 3D model:
+          </p>
+          <div className="mt-2 space-y-1">
+            {currentGlbUrl && (
+              <div>
+                <span className="text-xs text-green-700">GLB: </span>
+                <a href={currentGlbUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline hover:text-green-800 break-all">
+                  {currentGlbUrl}
+                </a>
+              </div>
+            )}
+            {currentUsdzUrl && (
+              <div>
+                <span className="text-xs text-green-700">USDZ: </span>
+                <a href={currentUsdzUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline hover:text-green-800 break-all">
+                  {currentUsdzUrl}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {currentArUrl && !currentGlbUrl && (
         <div className="rounded border border-green-200 bg-green-50 p-3">
           <p className="text-sm text-green-800">
             ✅ This product already has a 3D model:{" "}
@@ -230,15 +305,58 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
       )}
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">Image URL</label>
-        <Input
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://example.com/furniture-image.jpg"
-          disabled={loading || (job?.status === "IN_PROGRESS" || job?.status === "PENDING")}
-        />
-        <p className="mt-1 text-xs text-slate-500">Use a clear, well-lit image with white background for best results</p>
+        <label className="mb-2 block text-sm font-medium text-slate-700">Fotos del producto (Multi-view)</label>
+
+        {/* Lista de fotos ya subidas */}
+        <div className="mb-3 grid grid-cols-3 gap-2">
+          {imageUrls.map((url, index) => (
+            <div key={index} className="relative group overflow-hidden rounded-md border border-slate-200 aspect-square">
+              <img src={url} alt={`Vista ${index + 1}`} className="w-full h-full object-cover" />
+              <button
+                type="button"
+                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-80 hover:opacity-100"
+                onClick={() => setImageUrls(imageUrls.filter((_, i) => i !== index))}
+                disabled={loading || (job?.status === "IN_PROGRESS" || job?.status === "PENDING")}
+              >
+                X
+              </button>
+              <div className="absolute w-full bottom-0 bg-black bg-opacity-50 text-white text-[10px] text-center p-0.5">
+                {index === 0 ? "Frente" : index === 1 ? "Costado" : "Atrás"}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Botones para subir */}
+        {imageUrls.length < 3 && (
+          <div className="flex gap-2 mt-2">
+            <div className="relative flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileUpload}
+                disabled={uploadingImage || loading || (job?.status === "IN_PROGRESS" || job?.status === "PENDING")}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="camera-upload"
+              />
+              <Button
+                variant="secondary"
+                disabled={uploadingImage || loading || (job?.status === "IN_PROGRESS" || job?.status === "PENDING")}
+                className="w-full border-dashed"
+                asChild
+              >
+                <label htmlFor="camera-upload" className="w-full flex justify-center cursor-pointer pointer-events-none">
+                  {uploadingImage ? "Subiendo..." : "📸 Tomar Foto / Galería"}
+                </label>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-2 text-xs text-slate-500">
+          Recomendado subir 3 fotos claras con fondo liso: frente, costado y parte de atrás.
+        </p>
       </div>
 
       {error && (
@@ -252,10 +370,10 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
       <div className="flex gap-2">
         <Button
           onClick={handleGenerate}
-          disabled={loading || !imageUrl || job?.status === "IN_PROGRESS" || job?.status === "PENDING"}
+          disabled={loading || imageUrls.every(url => url.trim() === "") || job?.status === "IN_PROGRESS" || job?.status === "PENDING"}
           className="flex-1"
         >
-          {loading ? "Starting..." : job?.status === "IN_PROGRESS" || job?.status === "PENDING" ? "Generating..." : "Generate 3D Model"}
+          {loading ? "Starting..." : job?.status === "IN_PROGRESS" || job?.status === "PENDING" ? "Generating..." : "Generate 3D Model (Meshy)"}
         </Button>
 
         {job && job.status === "SUCCEEDED" && (

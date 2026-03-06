@@ -1,228 +1,124 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
-import Link from "next/link";
-import { Button } from "../../components/ui/Button";
-import { Input } from "../../components/ui/Input";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useAdmin } from "../layout";
 import { FileUpload } from "../../components/ui/FileUpload";
-import { Container } from "../../components/layout/Container";
 import { AI3DGenerator } from "../../components/admin/AI3DGenerator";
 import { ARPreview } from "../../components/products/ARPreview";
-import { fetchProducts } from "../../lib/api";
 import { ProductLogModal } from "../../components/admin/inventory/ProductLogModal";
 
 import {
   Product,
   ValidationResult,
   Store,
-  SessionUser,
-  LoginState,
-  StatsSummary,
   FormState,
   emptyForm,
   isValidUrl,
   slugify,
 } from "../../lib/admin.types";
 
-export default function AdminPage() {
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [login, setLogin] = useState<LoginState>({ email: "", password: "" });
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+import {
+  Search,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Star,
+  Trash2,
+  Pencil,
+  History,
+  Download,
+  Upload,
+  Loader2,
+  Package,
+  Box,
+  BarChart3,
+  Check,
+  AlertTriangle,
+  Image as ImageIcon,
+} from "lucide-react";
+
+// ─── Tabs ───
+type ViewTab = "general" | "ar" | "stock";
+const tabs: { id: ViewTab; label: string; icon: React.ElementType }[] = [
+  { id: "general", label: "General", icon: Package },
+  { id: "ar", label: "AR / 3D", icon: Box },
+  { id: "stock", label: "Stock", icon: BarChart3 },
+];
+
+export default function InventoryPage() {
+  const { user, apiBase } = useAdmin();
+
+  // Data
   const [products, setProducts] = useState<Product[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validation, setValidation] = useState<Record<number, ValidationResult | { error: string }>>({});
-  const [stores, setStores] = useState<Store[]>([]);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [rowError, setRowError] = useState<Record<number, string>>({});
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [formValidation, setFormValidation] = useState<ValidationResult | { error: string } | null>(null);
-  const [formValidating, setFormValidating] = useState(false);
-  const [stats, setStats] = useState<StatsSummary | null>(null);
-
-  // taxonomy management
-  const [extraCategories, setExtraCategories] = useState<string[]>([]);
-  const [extraRooms, setExtraRooms] = useState<string[]>([]);
-  const [extraStyles, setExtraStyles] = useState<string[]>([]);
-  const [newCategory, setNewCategory] = useState("");
-  const [newRoom, setNewRoom] = useState("");
-  const [newStyle, setNewStyle] = useState("");
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); // texto para filtrar productos
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterRoom, setFilterRoom] = useState("");
-  const [filterFeatured, setFilterFeatured] = useState<"" | "yes" | "no">("");
-  const [filterInStock, setFilterInStock] = useState<"" | "yes" | "no">("");
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-  const [importErrors, setImportErrors] = useState<string[]>([]);
-  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
-  const [previewRows, setPreviewRows] = useState<string[][]>([]);
-  const [pendingImportRows, setPendingImportRows] = useState<string[][]>([]);
-  const [showConfirmImport, setShowConfirmImport] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [loadingSettings, setLoadingSettings] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [logProductId, setLogProductId] = useState<number | null>(null);
 
-  const exportCsv = () => {
-    const items = sortedProducts; // export sorted/filtered list
-    if (!items.length) return;
-    const fields = [
-      "id",
-      "storeId",
-      "name",
-      "slug",
-      "price",
-      "category",
-      "room",
-      "style",
-      "color",
-      "widthCm",
-      "depthCm",
-      "heightCm",
-      "arUrl",
-      "imageUrl",
-      "inStock",
-      "stockQty",
-    ];
-    const header = fields.join(",");
-    const rows = items.map((p) =>
-      fields
-        .map((f) => {
-          const v = (p as any)[f];
-          if (v == null) return "";
-          return String(v).replace(/"/g, '""');
-        })
-        .map((v) => `"${v}"`)
-        .join(",")
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "productos.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleImportFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      if (lines.length < 2) return;
-      const hdr = lines[0].split(",").map((c) => c.replace(/"/g, "").trim());
-      const rows = lines.slice(1).map((l) => l.split(",").map((v) => v.replace(/^"|"$/g, "").trim()));
-      setPreviewHeaders(hdr);
-      setPreviewRows(rows.slice(0, 10));
-      setPendingImportRows(rows);
-      setShowConfirmImport(true);
-    };
-    reader.readAsText(file);
-  };
-
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterInStock, setFilterInStock] = useState<"" | "yes" | "no">("");
   const [sortField, setSortField] = useState<"" | "name" | "price" | "id">("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<ViewTab>("general");
   const pageSize = 20;
 
-  const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001", []);
+  // Selection + bulk
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const loadSettings = async () => {
-    setLoadingSettings(true);
-    try {
-      const res = await fetch(`${apiBase}/api/admin/settings`, { credentials: "include" });
-      if (!res.ok) throw new Error(`Status ${res.status}`);
-      const data = await res.json();
-      setSettings(data);
-    } catch (err) {
-      console.error("Error loading settings", err);
-    } finally {
-      setLoadingSettings(false);
-    }
-  };
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [formValidation, setFormValidation] = useState<ValidationResult | { error: string } | null>(null);
+  const [formValidating, setFormValidating] = useState(false);
 
-  const saveSetting = async (key: string, value: string) => {
-    try {
-      const res = await fetch(`${apiBase}/api/admin/settings`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ key, value }),
-      });
-      if (!res.ok) throw new Error(`Status ${res.status}`);
-      setSettings((prev) => ({ ...prev, [key]: value }));
-    } catch (err) {
-      console.error("Error saving setting", err);
-    }
-  };
+  // Image preview
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
+  // Product log modal
+  const [logProductId, setLogProductId] = useState<number | null>(null);
+  const [showLogModal, setShowLogModal] = useState(false);
+
+  // CSV
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
+  const [previewRows, setPreviewRows] = useState<string[][]>([]);
+  const [pendingImportRows, setPendingImportRows] = useState<string[][]>([]);
+
+  // ─── Derived data ───
   const categories = useMemo(() => {
-    const derived = products.map((p) => p.category).filter((v): v is string => Boolean(v));
-    return Array.from(new Set([...derived, ...extraCategories])).sort();
-  }, [products, extraCategories]);
-
-  const rooms = useMemo(() => {
-    const derived = products.map((p) => p.room).filter((v): v is string => Boolean(v));
-    return Array.from(new Set([...derived, ...extraRooms])).sort();
-  }, [products, extraRooms]);
-
-  const styles = useMemo(() => {
-    const derived = products.map((p) => p.style).filter((v): v is string => Boolean(v));
-    return Array.from(new Set([...derived, ...extraStyles])).sort();
-  }, [products, extraStyles]);
-
-  const clearTaxonomy = async (
-    field: "category" | "room" | "style",
-    value: string
-  ) => {
-    if (!confirm(`Eliminar \"${value}\" y limpiar los productos asociados?`)) return;
-    const affected = products.filter((p) => (p as any)[field] === value);
-    for (const p of affected) {
-      await updateProductField(p.id, { [field]: undefined });
-    }
-    await loadProducts();
-  };
+    return Array.from(new Set(products.map((p) => p.category).filter((v): v is string => Boolean(v)))).sort();
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let arr = products;
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      arr = arr.filter((p) => {
-        return (
-          p.name.toLowerCase().includes(term) ||
-          String(p.id).includes(term) ||
-          (p.slug && p.slug.toLowerCase().includes(term)) ||
-          (p.category && p.category.toLowerCase().includes(term)) ||
-          (p.room && p.room.toLowerCase().includes(term)) ||
-          (p.store?.name && p.store.name.toLowerCase().includes(term))
-        );
-      });
+      const t = searchTerm.toLowerCase();
+      arr = arr.filter(
+        (p) =>
+          p.name.toLowerCase().includes(t) ||
+          String(p.id).includes(t) ||
+          p.slug?.toLowerCase().includes(t) ||
+          p.category?.toLowerCase().includes(t) ||
+          p.store?.name?.toLowerCase().includes(t)
+      );
     }
-    if (filterCategory) {
-      arr = arr.filter((p) => p.category === filterCategory);
-    }
-    if (filterRoom) {
-      arr = arr.filter((p) => p.room === filterRoom);
-    }
-    if (filterFeatured) {
-      arr = arr.filter((p) => (filterFeatured === "yes" ? p.featured : !p.featured));
-    }
-    if (filterInStock) {
-      arr = arr.filter((p) => (filterInStock === "yes" ? p.inStock : !p.inStock));
-    }
+    if (filterCategory) arr = arr.filter((p) => p.category === filterCategory);
+    if (filterInStock) arr = arr.filter((p) => (filterInStock === "yes" ? p.inStock : !p.inStock));
     return arr;
-  }, [products, searchTerm, filterCategory, filterRoom, filterFeatured, filterInStock]);
+  }, [products, searchTerm, filterCategory, filterInStock]);
 
   const sortedProducts = useMemo(() => {
     if (!sortField) return filteredProducts;
-    const arr = [...filteredProducts];
-    arr.sort((a, b) => {
+    return [...filteredProducts].sort((a, b) => {
       let va: any = a[sortField as keyof Product];
       let vb: any = b[sortField as keyof Product];
       if (typeof va === "string") va = va.toLowerCase();
@@ -233,1372 +129,666 @@ export default function AdminPage() {
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-    return arr;
   }, [filteredProducts, sortField, sortDir]);
 
-  const pagedProducts = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return sortedProducts.slice(start, start + pageSize);
-  }, [sortedProducts, page]);
+  const pagedProducts = useMemo(() => sortedProducts.slice((page - 1) * pageSize, page * pageSize), [sortedProducts, page]);
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
 
-  useEffect(() => {
-    // reset paging when filter/sort changes
-    setPage(1);
-  }, [searchTerm, sortField, sortDir, sortedProducts.length]);
+  useEffect(() => { setPage(1); }, [searchTerm, filterCategory, filterInStock, sortField, sortDir]);
 
-  useEffect(() => {
-    if (user?.storeId) {
-      setForm((prev) => ({ ...prev, storeId: user.storeId ?? undefined }));
-    }
-  }, [user?.storeId]);
-
-  useEffect(() => {
-    if (user) {
-      loadStats(user);
-      loadSettings();
-      loadProducts(user);
-    } else {
-      setStats(null);
-      setSettings({});
-      setProducts([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  useEffect(() => {
-    // cargar tiendas públicas para selector
-    fetch(`${apiBase}/api/stores`)
-      .then((res) => res.json())
-      .then((data) => setStores(data?.items ?? []))
-      .catch(() => setStores([]));
-  }, [apiBase]);
-
-  useEffect(() => {
-    const fetchSession = async () => {
-      setAuthLoading(true);
-      setAuthError(null);
-      try {
-        const res = await fetch(`${apiBase}/api/auth/me`, { credentials: "include" });
-        if (!res.ok) {
-          setUser(null);
-          return;
-        }
-        const data = await res.json();
-        const nextUser = (data as { user?: SessionUser })?.user ?? (data as SessionUser | null);
-        setUser(nextUser);
-        if (nextUser?.storeId) {
-          setForm((prev) => ({ ...prev, storeId: nextUser.storeId ?? undefined }));
-        }
-      } catch (err) {
-        setAuthError((err as Error).message);
-        setUser(null);
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-
-    fetchSession();
-  }, [apiBase]);
-
-  const loadStats = async (session?: SessionUser | null) => {
-    const activeUser = session ?? user;
-    if (!activeUser) {
-      setError("Debes iniciar sesión");
-      return;
-    }
-    setStatsLoading(true);
-    try {
-      const res = await fetch(`${apiBase}/api/admin/stats`, {
-        credentials: "include",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        setError((data as { error?: string })?.error || `Error ${res.status}`);
-        return;
-      }
-      setStats(data as StatsSummary);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  const loadProducts = async (session?: SessionUser | null) => {
-    const activeUser = session ?? user;
-    if (!activeUser) {
-      setError("Debes iniciar sesión");
-      return;
-    }
+  // ─── API calls ───
+  const loadProducts = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/admin/products`, {
-        credentials: "include",
-      });
+      const res = await fetch(`${apiBase}/api/admin/products`, { credentials: "include" });
       const data = await res.json().catch(() => []);
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        setError((data as { error?: string })?.error || `Error ${res.status}`);
-        return;
-      }
+      if (!res.ok) { setError((data as any)?.error || `Error ${res.status}`); return; }
       setProducts(data);
-      setRowError({});
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    } catch (err) { setError((err as Error).message); }
+    finally { setLoading(false); }
+  }, [user, apiBase]);
 
-  const handleLogin = async () => {
-    setAuthError(null);
-    setError(null);
-    setAuthLoading(true);
+  useEffect(() => {
+    if (user) {
+      loadProducts();
+      fetch(`${apiBase}/api/stores`).then((r) => r.json()).then((d) => setStores(d?.items ?? [])).catch(() => { });
+      fetch(`${apiBase}/api/admin/settings`, { credentials: "include" }).then((r) => r.json()).then((d) => setSettings(d)).catch(() => { });
+    }
+  }, [user, apiBase, loadProducts]);
+
+  const updateProductField = async (id: number, patch: Partial<Product>) => {
     try {
-      const res = await fetch(`${apiBase}/api/auth/login`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(login),
+      const res = await fetch(`${apiBase}/api/admin/products/${id}`, {
+        method: "PUT", headers: { "content-type": "application/json" }, credentials: "include",
+        body: JSON.stringify(patch),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setAuthError((data as { error?: string })?.error || "No se pudo iniciar sesión");
-        setUser(null);
-        return;
-      }
-      const nextUser = (data as { user?: SessionUser })?.user ?? (data as SessionUser | null);
-      setUser(nextUser);
-      if (nextUser?.storeId) {
-        setForm((prev) => ({ ...prev, storeId: nextUser.storeId ?? undefined }));
-      }
-      setLogin({ email: "", password: "" });
-      await loadStats(nextUser);
-      await loadProducts(nextUser);
-    } catch (err) {
-      setAuthError((err as Error).message);
-      setUser(null);
-    } finally {
-      setAuthLoading(false);
-    }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as any).error || `Error ${res.status}`); }
+      await loadProducts();
+    } catch (err) { setError((err as Error).message); }
   };
 
-  const handleLogout = async () => {
-    setAuthError(null);
-    setAuthLoading(true);
-    try {
-      await fetch(`${apiBase}/api/auth/logout`, { credentials: "include" });
-    } catch (err) {
-      setAuthError((err as Error).message);
-    } finally {
-      setUser(null);
-      setProducts([]);
-      setValidation({});
-      setRowError({});
-      setForm(emptyForm);
-      setFormValidation(null);
-      setError(null);
-      setStats(null);
-      setAuthLoading(false);
-    }
-  };
-
-  const clearFieldError = (field: keyof FormState) => {
-    setFormErrors((prev) => {
-      if (!prev[field]) return prev;
-      const { [field]: _removed, ...rest } = prev;
-      return rest;
-    });
+  const deleteProduct = async (id: number) => {
+    if (!confirm("¿Borrar producto?")) return;
+    await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
+    await loadProducts();
   };
 
   const validate = async (product: Product) => {
-    if (!user) {
-      setError("Debes iniciar sesión");
-      return;
-    }
-    if (!product.arUrl) {
-      setValidation((prev) => ({ ...prev, [product.id]: { error: "Sin arUrl" } }));
-      return;
-    }
-    setValidation((prev) => ({ ...prev, [product.id]: { error: "Validando..." } }));
-    setRowError((prev) => ({ ...prev, [product.id]: "" }));
+    if (!product.arUrl) { setValidation((p) => ({ ...p, [product.id]: { error: "Sin arUrl" } })); return; }
+    setValidation((p) => ({ ...p, [product.id]: { error: "Validando..." } }));
     try {
       const tol = Number(settings.tolerance ?? "0.05") || 0.05;
       const res = await fetch(`${apiBase}/api/ar/validate-scale?tolerance=${tol}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          file: product.arUrl,
-          widthCm: product.widthCm ?? undefined,
-          depthCm: product.depthCm ?? undefined,
-          heightCm: product.heightCm ?? undefined,
-        }),
+        method: "POST", headers: { "content-type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ file: product.arUrl, widthCm: product.widthCm, depthCm: product.depthCm, heightCm: product.heightCm }),
       });
       const data = await res.json();
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        setValidation((prev) => ({ ...prev, [product.id]: { error: data?.error || `Error ${res.status}` } }));
-        if (data?.validation?.suggestion?.factor) {
-          setRowError((prev) => ({ ...prev, [product.id]: `Sugiere factor ${data.validation.suggestion.factor.toFixed(3)}` }));
-        }
-        return;
-      }
-      setValidation((prev) => ({ ...prev, [product.id]: data }));
-    } catch (err) {
-      setValidation((prev) => ({ ...prev, [product.id]: { error: (err as Error).message } }));
-    }
+      setValidation((p) => ({ ...p, [product.id]: res.ok ? data : { error: data?.error || `Error ${res.status}` } }));
+    } catch (err) { setValidation((p) => ({ ...p, [product.id]: { error: (err as Error).message } })); }
   };
 
-  const onEdit = (p: Product) => {
+  // ─── Drawer CRUD ───
+  const openCreate = () => {
+    setForm({ ...emptyForm, storeId: user?.storeId ?? undefined });
+    setFormErrors({});
+    setFormValidation(null);
+    setDrawerOpen(true);
+  };
+
+  const openEdit = (p: Product) => {
     setForm({
-      id: p.id,
-      storeId: p.storeId,
-      name: p.name,
-      slug: p.slug,
-      description: p.description ?? "",
-      category: p.category ?? "",
-      room: p.room ?? "",
-      style: p.style ?? "",
-      color: p.color ?? "",
-      featured: Boolean(p.featured),
-      price: String(p.price ?? ""),
-      arUrl: p.arUrl ?? "",
-      widthCm: p.widthCm ? String(p.widthCm) : "",
-      depthCm: p.depthCm ? String(p.depthCm) : "",
-      heightCm: p.heightCm ? String(p.heightCm) : "",
-      imageUrl: p.imageUrl ?? "",
-      images: p.images ? p.images.map((i) => ({ url: i.url, type: i.type || undefined })) : [],
-      inStock: Boolean(p.inStock),
-      stockQty: p.stockQty ? String(p.stockQty) : "",
+      id: p.id, storeId: p.storeId, name: p.name, slug: p.slug,
+      description: p.description ?? "", category: p.category ?? "", room: p.room ?? "",
+      style: p.style ?? "", color: p.color ?? "", featured: Boolean(p.featured),
+      price: String(p.price ?? ""), arUrl: p.arUrl ?? "", glbUrl: p.glbUrl ?? "", usdzUrl: p.usdzUrl ?? "",
+      widthCm: p.widthCm ? String(p.widthCm) : "", depthCm: p.depthCm ? String(p.depthCm) : "",
+      heightCm: p.heightCm ? String(p.heightCm) : "", imageUrl: p.imageUrl ?? "",
+      images: p.images?.map((i) => ({ url: i.url, type: i.type || undefined })) ?? [],
+      inStock: Boolean(p.inStock), stockQty: p.stockQty ? String(p.stockQty) : "",
     });
     setFormErrors({});
     setFormValidation(null);
+    setDrawerOpen(true);
   };
 
-  const resetForm = () => {
-    setForm(emptyForm);
-    setFormErrors({});
-    setFormValidation(null);
-  };
+  const closeDrawer = () => { setDrawerOpen(false); setForm(emptyForm); setFormErrors({}); setFormValidation(null); };
 
-  const validateFormFields = () => {
+  const submitForm = async () => {
     const errors: Record<string, string> = {};
     if (!form.storeId) errors.storeId = "Requerido";
     if (!form.name.trim()) errors.name = "Requerido";
     if (!form.slug.trim()) errors.slug = "Requerido";
     if (!form.description.trim()) errors.description = "Requerido";
     const priceVal = Number(form.price);
-    if (!form.price || Number.isNaN(priceVal) || priceVal <= 0) errors.price = "Precio inválido";
-    const checkPositive = (value: string, field: keyof FormState) => {
-      if (!value) return;
-      const num = Number(value);
-      if (Number.isNaN(num) || num <= 0) errors[field] = "Debe ser mayor a 0";
-    };
-    checkPositive(form.widthCm, "widthCm");
-    checkPositive(form.depthCm, "depthCm");
-    checkPositive(form.heightCm, "heightCm");
+    if (!form.price || isNaN(priceVal) || priceVal <= 0) errors.price = "Precio inválido";
     if (form.arUrl && !isValidUrl(form.arUrl)) errors.arUrl = "URL inválida";
+    if (form.glbUrl && !isValidUrl(form.glbUrl)) errors.glbUrl = "URL inválida";
+    if (form.usdzUrl && !isValidUrl(form.usdzUrl)) errors.usdzUrl = "URL inválida";
     if (form.imageUrl && !isValidUrl(form.imageUrl)) errors.imageUrl = "URL inválida";
-    form.images.forEach((img, idx) => {
-      if (img.url && !isValidUrl(img.url)) {
-        errors[`images.${idx}.url`] = "URL inválida";
-      }
-    });
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+    if (Object.keys(errors).length) return;
 
-  const validateFormScale = async () => {
-    if (!user) {
-      setError("Debes iniciar sesión");
-      return;
-    }
-    if (!form.arUrl || (!form.widthCm && !form.depthCm && !form.heightCm)) {
-      setFormValidation({ error: "Necesita AR URL y al menos una dimensión" });
-      return;
-    }
-    setFormValidating(true);
-    setFormValidation(null);
-    try {
-      const tol = Number(settings.tolerance ?? "0.05") || 0.05;
-      const res = await fetch(`${apiBase}/api/ar/validate-scale?tolerance=${tol}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          file: form.arUrl,
-          widthCm: form.widthCm ? Number(form.widthCm) : undefined,
-          depthCm: form.depthCm ? Number(form.depthCm) : undefined,
-          heightCm: form.heightCm ? Number(form.heightCm) : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        setFormValidation({ error: data?.error || `Error ${res.status}` });
-        return;
-      }
-      setFormValidation(data);
-    } catch (err) {
-      setFormValidation({ error: (err as Error).message });
-    } finally {
-      setFormValidating(false);
-    }
-  };
-
-  const updateProductField = async (id: number, patch: Partial<Product>) => {
-    try {
-      const res = await fetch(`${apiBase}/api/admin/products/${id}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(patch),
-      });
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${res.status}`);
-      }
-      await loadProducts();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
-  const showProductLogs = (prodId: number) => {
-    setLogProductId(prodId);
-    setShowLogModal(true);
-  };
-
-  const applyBulkAction = async (action: "delete" | "featured" | "unfeatured" | "inStock" | "outStock") => {
-    if (!selectedIds.size) return;
-    if (action === "delete" && !confirm(`¿Borrar ${selectedIds.size} productos?`)) return;
-    for (const id of Array.from(selectedIds)) {
-      if (action === "delete") {
-        await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
-      } else if (action === "featured") {
-        await updateProductField(id, { featured: true });
-      } else if (action === "unfeatured") {
-        await updateProductField(id, { featured: false });
-      } else if (action === "inStock") {
-        await updateProductField(id, { inStock: true });
-      } else if (action === "outStock") {
-        await updateProductField(id, { inStock: false });
-      }
-    }
-    setSelectedIds(new Set());
-  };
-
-  const submitForm = async () => {
-    if (!user) {
-      setError("Debes iniciar sesión");
-      return;
-    }
-    if (!validateFormFields()) {
-      setError("Revisa los campos marcados en rojo");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
       const payload = {
-        storeId: form.storeId ? Number(form.storeId) : undefined,
-        name: form.name,
-        slug: form.slug,
-        description: form.description || undefined,
-        category: form.category || undefined,
-        room: form.room || undefined,
-        style: form.style || undefined,
-        color: form.color || undefined,
-        featured: form.featured,
-        price: form.price ? Number(form.price) : 0,
-        arUrl: form.arUrl || undefined,
+        storeId: Number(form.storeId), name: form.name, slug: form.slug,
+        description: form.description || undefined, category: form.category || undefined,
+        room: form.room || undefined, style: form.style || undefined, color: form.color || undefined,
+        featured: form.featured, price: Number(form.price),
+        arUrl: form.arUrl || undefined, glbUrl: form.glbUrl || undefined, usdzUrl: form.usdzUrl || undefined,
+        imageUrl: form.imageUrl || undefined,
         widthCm: form.widthCm ? Number(form.widthCm) : undefined,
         depthCm: form.depthCm ? Number(form.depthCm) : undefined,
         heightCm: form.heightCm ? Number(form.heightCm) : undefined,
-        imageUrl: form.imageUrl || undefined,
-        images: form.images
-          .filter((i) => i.url)
-          .map((i) => ({ url: i.url, type: i.type || undefined })),
-        inStock: form.inStock,
-        stockQty: form.stockQty ? Number(form.stockQty) : undefined,
+        images: form.images.filter((i) => i.url).map((i) => ({ url: i.url, type: i.type || undefined })),
+        inStock: form.inStock, stockQty: form.stockQty ? Number(form.stockQty) : undefined,
       };
-      const isEdit = Boolean(form.id);
       const tol = Number(settings.tolerance ?? "0.05") || 0.05;
-      const baseUrl = isEdit ? `${apiBase}/api/admin/products/${form.id}` : `${apiBase}/api/admin/products`;
-      const url = `${baseUrl}?tolerance=${tol}`;
-      const method = isEdit ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "content-type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
+      const isEdit = Boolean(form.id);
+      const url = isEdit ? `${apiBase}/api/admin/products/${form.id}?tolerance=${tol}` : `${apiBase}/api/admin/products?tolerance=${tol}`;
+      const res = await fetch(url, { method: isEdit ? "PUT" : "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        setUser(null);
-        setError("Sesión expirada");
-        return;
-      }
-      if (!res.ok) {
-        let msg = data?.error || `Error ${res.status}`;
-        if (data?.details) {
-          msg += " " + JSON.stringify(data.details);
-        }
-        setError(msg);
-        // mostrar sugerencia por fila si es validación de escala
-        if (data?.validation?.suggestion?.factor && form.id) {
-          setRowError((prev) => ({ ...prev, [form.id!]: `Sugiere factor ${data.validation.suggestion.factor.toFixed(3)}` }));
-        }
-        return;
-      }
+      if (!res.ok) { setError((data as any)?.error || `Error ${res.status}`); return; }
       await loadProducts();
-      resetForm();
-      setFormValidation(null);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+      closeDrawer();
+    } catch (err) { setError((err as Error).message); }
+    finally { setSaving(false); }
   };
 
+  // ─── CSV ───
+  const exportCsv = () => {
+    if (!sortedProducts.length) return;
+    const fields = ["id", "storeId", "name", "slug", "price", "category", "room", "style", "arUrl", "glbUrl", "usdzUrl", "imageUrl", "inStock", "stockQty"];
+    const csv = [fields.join(","), ...sortedProducts.map((p) => fields.map((f) => `"${String((p as any)[f] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "productos.csv";
+    a.click();
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const lines = (e.target?.result as string).split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) return;
+      setPreviewHeaders(lines[0].split(",").map((c) => c.replace(/"/g, "").trim()));
+      const rows = lines.slice(1).map((l) => l.split(",").map((v) => v.replace(/^"|"$/g, "").trim()));
+      setPreviewRows(rows.slice(0, 5));
+      setPendingImportRows(rows);
+      setShowImportPreview(true);
+    };
+    reader.readAsText(file);
+  };
+
+  const submitImport = async () => {
+    if (!user || !pendingImportRows.length) return;
+    setSaving(true);
+    setImportErrors([]);
+    try {
+      const items = pendingImportRows
+        .map((row) => { const o: any = {}; previewHeaders.forEach((h, i) => { if (row[i]) o[h] = row[i]; }); return o; })
+        .filter((o) => Object.keys(o).length)
+        .map((o) => ({
+          ...o, id: o.id ? Number(o.id) : undefined,
+          storeId: o.storeId ? Number(o.storeId) : user.role === "STORE" && user.storeId ? user.storeId : undefined,
+          price: o.price ? Number(o.price) : 0, stockQty: o.stockQty ? Number(o.stockQty) : undefined,
+          inStock: o.inStock ? String(o.inStock).toLowerCase() === "true" : true,
+        }));
+      const valid = items.filter((i) => i.name && i.slug && i.price !== undefined);
+      if (!valid.length) { setImportErrors(["No hay items válidos. Necesita 'name', 'slug' y 'price'."]); return; }
+      const res = await fetch(`${apiBase}/api/admin/products/bulk`, { method: "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify(valid) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setImportErrors([(data as any).error || `Error ${res.status}`]); return; }
+      setShowImportPreview(false);
+      await loadProducts();
+    } catch (err) { setImportErrors([(err as Error).message]); }
+    finally { setSaving(false); }
+  };
+
+  // ─── Bulk actions ───
+  const applyBulkAction = async (action: "delete" | "featured" | "unfeatured" | "inStock" | "outStock") => {
+    if (!selectedIds.size) return;
+    if (action === "delete" && !confirm(`¿Borrar ${selectedIds.size} productos?`)) return;
+    for (const id of Array.from(selectedIds)) {
+      if (action === "delete") await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
+      else if (action === "featured") await updateProductField(id, { featured: true });
+      else if (action === "unfeatured") await updateProductField(id, { featured: false });
+      else if (action === "inStock") await updateProductField(id, { inStock: true });
+      else if (action === "outStock") await updateProductField(id, { inStock: false });
+    }
+    await loadProducts();
+    setSelectedIds(new Set());
+  };
+
+  const handleSort = (field: "name" | "price" | "id") => {
+    if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
+
+  // ─── Form field helper ───
+  const F = (label: string, field: keyof FormState, opts?: { type?: string; placeholder?: string; span?: number; rows?: number }) => (
+    <div className={opts?.span ? `sm:col-span-${opts.span}` : ""} style={opts?.span ? { gridColumn: `span ${opts.span}` } : undefined}>
+      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">{label}</label>
+      {opts?.rows ? (
+        <textarea
+          rows={opts.rows}
+          placeholder={opts?.placeholder}
+          value={String(form[field] ?? "")}
+          onChange={(e) => { setForm((f) => ({ ...f, [field]: e.target.value })); setFormErrors((fe) => { const { [field]: _, ...r } = fe; return r; }); }}
+          className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all ${formErrors[field] ? "border-red-300" : "border-slate-200"}`}
+        />
+      ) : (
+        <input
+          type={opts?.type || "text"}
+          placeholder={opts?.placeholder}
+          value={String(form[field] ?? "")}
+          onChange={(e) => {
+            const val = e.target.value;
+            setForm((f) => {
+              const next = { ...f, [field]: val };
+              if (field === "name" && (!f.slug || slugify(f.slug) === slugify(f.name))) next.slug = slugify(val);
+              return next;
+            });
+            setFormErrors((fe) => { const { [field]: _, ...r } = fe; return r; });
+          }}
+          className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all ${formErrors[field] ? "border-red-300" : "border-slate-200"}`}
+        />
+      )}
+      {formErrors[field] && <p className="text-[10px] text-red-600 mt-0.5">{formErrors[field]}</p>}
+    </div>
+  );
+
   return (
-    <div className="py-10">
-      <Container>
-        {previewImageUrl && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            onClick={() => setPreviewImageUrl(null)}
-          >
-            <img src={previewImageUrl} className="max-h-[90%] max-w-[90%]" />
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Inventario</h1>
+          <p className="text-sm text-slate-500">{products.length} productos · Página {page}/{totalPages}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={exportCsv} disabled={!products.length} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50">
+            <Download size={14} /> CSV
+          </button>
+          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
+            <Upload size={14} /> Importar
+            <input type="file" accept="text/csv" className="hidden" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+          </label>
+          <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors shadow-sm">
+            <Plus size={14} /> Nuevo
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-medium">{error}</div>}
+
+      {/* Filters + Tabs row */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        {/* Search + filters */}
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder="Buscar por nombre, ID, slug..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all" />
           </div>
-        )}
-        {showLogModal && logProductId && (
-          <ProductLogModal
-            productId={logProductId}
-            apiBase={apiBase}
-            onClose={() => setShowLogModal(false)}
-          />
-        )}
-        <div className="mb-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Inventario</h1>
-              <p className="text-sm text-slate-600">Gestión de productos, modelos 3D y stock.</p>
-            </div>
-          </div>
+          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+            className="appearance-none pl-3 pr-7 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:border-[#0058a3] cursor-pointer bg-white">
+            <option value="">Categoría</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={filterInStock} onChange={(e) => setFilterInStock(e.target.value as any)}
+            className="appearance-none pl-3 pr-7 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:border-[#0058a3] cursor-pointer bg-white">
+            <option value="">Stock</option>
+            <option value="yes">En stock</option>
+            <option value="no">Agotado</option>
+          </select>
         </div>
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-2">
-            <h2 className="text-lg font-semibold text-slate-900">Taxonomías</h2>
-            <p className="text-sm text-slate-600">Administrar categorías, ambientes y estilos usados en productos</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <p className="font-semibold text-slate-800">Categorías</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {categories.map((c) => (
-                  <span key={c} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-                    {c}
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => clearTaxonomy("category", c)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  placeholder="Nuevo..."
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    const v = newCategory.trim();
-                    if (v && !categories.includes(v)) {
-                      setExtraCategories((prev) => [...prev, v]);
-                    }
-                    setNewCategory("");
-                  }}
-                >
-                  Agregar
-                </Button>
-              </div>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">Ambientes</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {rooms.map((c) => (
-                  <span key={c} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-                    {c}
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => clearTaxonomy("room", c)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  placeholder="Nuevo..."
-                  value={newRoom}
-                  onChange={(e) => setNewRoom(e.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    const v = newRoom.trim();
-                    if (v && !rooms.includes(v)) {
-                      setExtraRooms((prev) => [...prev, v]);
-                    }
-                    setNewRoom("");
-                  }}
-                >
-                  Agregar
-                </Button>
-              </div>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-800">Estilos</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {styles.map((c) => (
-                  <span key={c} className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-                    {c}
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => clearTaxonomy("style", c)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  placeholder="Nuevo..."
-                  value={newStyle}
-                  onChange={(e) => setNewStyle(e.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    const v = newStyle.trim();
-                    if (v && !styles.includes(v)) {
-                      setExtraStyles((prev) => [...prev, v]);
-                    }
-                    setNewStyle("");
-                  }}
-                >
-                  Agregar
-                </Button>
-              </div>
-            </div>
-          </div>
+        {/* Tabs */}
+        <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? "bg-white text-[#0058a3] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                <Icon size={14} /> {tab.label}
+              </button>
+            );
+          })}
         </div>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">Crear / editar producto</div>
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Tienda</p>
-              <select
-                className={`w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${formErrors.storeId ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-slate-200 focus:border-primary"}`}
-                value={form.storeId ?? ""}
-                disabled={user?.role === "STORE"}
-                onChange={(e) => {
-                  const value = e.target.value ? Number(e.target.value) : undefined;
-                  setForm((f) => ({ ...f, storeId: value }));
-                  clearFieldError("storeId");
-                }}
-              >
-                <option value="">Seleccionar</option>
-                {(user?.role === "STORE" && user.storeId ? stores.filter((s) => s.id === user.storeId) : stores).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              {formErrors.storeId && <p className="mt-1 text-xs text-red-600">{formErrors.storeId}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Nombre</p>
-              <Input
-                className={formErrors.name ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.name}
-                onChange={(e) => {
-                  const newName = e.target.value;
-                  setForm((f) => {
-                    const next = { ...f, name: newName };
-                    // auto-generate slug when field is empty or matches previous slugified name
-                    if (!f.slug || slugify(f.slug) === slugify(f.name)) {
-                      next.slug = slugify(newName);
-                    }
-                    return next;
-                  });
-                  clearFieldError("name");
-                }}
-              />
-              {formErrors.name && <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Slug</p>
-              <Input
-                className={formErrors.slug ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.slug}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, slug: e.target.value }));
-                  clearFieldError("slug");
-                }}
-              />
-              {formErrors.slug && <p className="mt-1 text-xs text-red-600">{formErrors.slug}</p>}
-            </div>
-            <div className="lg:col-span-3">
-              <p className="text-xs font-semibold text-slate-700">Descripción</p>
-              <textarea
-                className={`w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${formErrors.description ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-slate-200 focus:border-primary"}`}
-                rows={2}
-                value={form.description}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, description: e.target.value }));
-                  clearFieldError("description");
-                }}
-              />
-              {formErrors.description && <p className="mt-1 text-xs text-red-600">{formErrors.description}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Precio</p>
-              <Input
-                type="number"
-                className={formErrors.price ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.price}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, price: e.target.value }));
-                  clearFieldError("price");
-                }}
-              />
-              {formErrors.price && <p className="mt-1 text-xs text-red-600">{formErrors.price}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Categoría</p>
-              <Input list="categories-list" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
-              <datalist id="categories-list">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Ambiente</p>
-              <Input list="rooms-list" value={form.room} onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))} />
-              <datalist id="rooms-list">
-                {rooms.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Estilo</p>
-              <Input list="styles-list" value={form.style} onChange={(e) => setForm((f) => ({ ...f, style: e.target.value }))} />
-              <datalist id="styles-list">
-                {styles.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Color (CSS, puede ser varios separados por coma)</p>
-              <Input value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700 mb-1">AR URL (GLB/USDZ)</p>
-              <div className="flex gap-2">
-                <Input
-                  className={`flex-1 ${formErrors.arUrl ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}`}
-                  value={form.arUrl}
-                  placeholder="https://...modelo.glb"
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, arUrl: e.target.value }));
-                    clearFieldError("arUrl");
-                  }}
-                />
-                <FileUpload
-                  apiBase={apiBase}
-                  endpoint="/api/upload/model"
-                  accept=".glb,.usdz"
-                  buttonText="Subir Modelo"
-                  onUploadSuccess={(url) => {
-                    setForm((f) => ({ ...f, arUrl: url }));
-                    clearFieldError("arUrl");
-                  }}
-                />
-              </div>
-              {formErrors.arUrl && <p className="mt-1 text-xs text-red-600">{formErrors.arUrl}</p>}
-            </div>
+      </div>
 
-            {/* AI 3D Generation */}
-            {form.id && (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <AI3DGenerator
-                  productId={form.id}
-                  productName={form.name || "Product"}
-                  currentImageUrl={form.imageUrl}
-                  currentArUrl={form.arUrl}
-                  onSuccess={(glbUrl) => {
-                    setForm((f) => ({ ...f, arUrl: glbUrl }));
-                    // Refresh products list
-                    fetchProducts();
-                  }}
-                />
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 bg-[#0058a3]/5 border border-[#0058a3]/20 rounded-xl px-4 py-2 text-xs">
+          <span className="font-bold text-[#0058a3]">{selectedIds.size} seleccionado{selectedIds.size > 1 ? "s" : ""}</span>
+          <span className="text-slate-300">|</span>
+          <button onClick={() => applyBulkAction("featured")} className="text-slate-700 hover:text-slate-900 font-semibold">★ Destacar</button>
+          <button onClick={() => applyBulkAction("unfeatured")} className="text-slate-700 hover:text-slate-900 font-semibold">☆ Quitar</button>
+          <button onClick={() => applyBulkAction("inStock")} className="text-emerald-700 hover:text-emerald-900 font-semibold">En stock</button>
+          <button onClick={() => applyBulkAction("outStock")} className="text-amber-700 hover:text-amber-900 font-semibold">Sin stock</button>
+          <button onClick={() => applyBulkAction("delete")} className="text-red-600 hover:text-red-800 font-semibold ml-auto">Borrar</button>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        {loading ? (
+          <div className="animate-pulse">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-0">
+                <div className="h-4 w-4 bg-slate-200 rounded" />
+                <div className="h-8 w-8 bg-slate-200 rounded" />
+                <div className="h-4 w-40 bg-slate-200 rounded flex-1" />
+                <div className="h-4 w-20 bg-slate-100 rounded" />
+                <div className="h-6 w-16 bg-slate-100 rounded-full" />
               </div>
+            ))}
+          </div>
+        ) : pagedProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+              <Package size={24} className="text-slate-400" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900 mb-1">{searchTerm || filterCategory || filterInStock ? "Sin resultados" : "Sin productos"}</h3>
+            <p className="text-xs text-slate-500 max-w-[240px] mb-4">
+              {searchTerm || filterCategory || filterInStock ? "Probá con otros filtros." : "Agregá tu primer producto para empezar."}
+            </p>
+            {!searchTerm && !filterCategory && !filterInStock && (
+              <button onClick={openCreate} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0058a3] bg-[#0058a3]/5 px-4 py-2 rounded-full hover:bg-[#0058a3]/10 transition-colors">
+                <Plus size={14} /> Agregar producto
+              </button>
             )}
-
-            <div>
-              <p className="text-xs font-semibold text-slate-700 mb-1">Imagen principal (URL)</p>
-              <div className="flex gap-2">
-                <Input
-                  className={`flex-1 ${formErrors.imageUrl ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}`}
-                  value={form.imageUrl}
-                  placeholder="https://..."
-                  onChange={(e) => {
-                    setForm((f) => ({ ...f, imageUrl: e.target.value }));
-                    clearFieldError("imageUrl");
-                  }}
-                />
-                <FileUpload
-                  apiBase={apiBase}
-                  endpoint="/api/upload/image"
-                  accept="image/*"
-                  buttonText="Subir Imagen"
-                  onUploadSuccess={(url) => {
-                    setForm((f) => ({ ...f, imageUrl: url }));
-                    clearFieldError("imageUrl");
-                  }}
-                />
+          </div>
+        ) : (
+          <>
+            {/* Table header */}
+            <div className="hidden sm:grid grid-cols-[44px_1fr_120px_120px_100px_100px] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider items-center">
+              <div className="text-center">
+                <input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 accent-[#0058a3]"
+                  checked={pagedProducts.length > 0 && pagedProducts.every((p) => selectedIds.has(p.id))}
+                  onChange={(e) => setSelectedIds(e.target.checked ? new Set(pagedProducts.map((p) => p.id)) : new Set())} />
               </div>
-              {formErrors.imageUrl && <p className="mt-1 text-xs text-red-600">{formErrors.imageUrl}</p>}
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <p className="text-xs font-semibold text-slate-700">Galería (uno por línea con color opcional)</p>
-              {(form.images ?? []).map((img, idx) => (
-                <div key={idx} className="flex gap-2 mb-1">
-                  <Input
-                    placeholder="URL"
-                    value={img.url}
-                    onChange={(e) => {
-                      const url = e.target.value;
-                      setForm((f) => {
-                        const imgs = [...f.images];
-                        imgs[idx] = { ...imgs[idx], url };
-                        return { ...f, images: imgs };
-                      });
-                    }}
-                  />
-                  <Input
-                    placeholder="Color (ej. rojo)"
-                    value={img.type || ""}
-                    onChange={(e) => {
-                      const type = e.target.value;
-                      setForm((f) => {
-                        const imgs = [...f.images];
-                        imgs[idx] = { ...imgs[idx], type };
-                        return { ...f, images: imgs };
-                      });
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="text-red-600"
-                    onClick={() => {
-                      setForm((f) => ({
-                        ...f,
-                        images: f.images.filter((_, i) => i !== idx),
-                      }));
-                    }}
-                  >
-                    ×
+              <button onClick={() => handleSort("name")} className="flex items-center gap-1 hover:text-slate-700 transition-colors text-left">
+                Producto {sortField === "name" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
+              </button>
+              {activeTab === "general" && (
+                <>
+                  <button onClick={() => handleSort("price")} className="flex items-center gap-1 hover:text-slate-700 transition-colors">
+                    Precio {sortField === "price" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                   </button>
-                </div>
-              ))}
-              <Button size="md" onClick={() => setForm((f) => ({ ...f, images: [...f.images, { url: "", type: "" }] }))}>
-                Agregar imagen
-              </Button>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Ancho (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.widthCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.widthCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, widthCm: e.target.value }));
-                  clearFieldError("widthCm");
-                }}
-              />
-              {formErrors.widthCm && <p className="mt-1 text-xs text-red-600">{formErrors.widthCm}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Profundidad (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.depthCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.depthCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, depthCm: e.target.value }));
-                  clearFieldError("depthCm");
-                }}
-              />
-              {formErrors.depthCm && <p className="mt-1 text-xs text-red-600">{formErrors.depthCm}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Altura (cm)</p>
-              <Input
-                type="number"
-                className={formErrors.heightCm ? "border-red-300 focus:border-red-500 focus:ring-red-200" : ""}
-                value={form.heightCm}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, heightCm: e.target.value }));
-                  clearFieldError("heightCm");
-                }}
-              />
-              {formErrors.heightCm && <p className="mt-1 text-xs text-red-600">{formErrors.heightCm}</p>}
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.featured}
-                onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
-              />
-              Destacado
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.inStock}
-                onChange={(e) => setForm((f) => ({ ...f, inStock: e.target.checked }))}
-              />
-              Disponible
-            </label>
-            <div>
-              <p className="text-xs font-semibold text-slate-700">Cantidad en stock</p>
-              <Input
-                type="number"
-                value={form.stockQty}
-                onChange={(e) => setForm((f) => ({ ...f, stockQty: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button
-                onClick={submitForm}
-                disabled={!user || saving || !form.storeId || !form.name || !form.slug || !form.description || !form.price}
-              >
-                {saving ? "Guardando..." : form.id ? "Guardar cambios" : "Crear"}
-              </Button>
-              {form.id && (
-                <Button variant="ghost" onClick={resetForm} disabled={saving}>
-                  Cancelar
-                </Button>
+                  <span>Categoría</span>
+                  {user?.role === "ADMIN" && <span>Tienda</span>}
+                </>
               )}
-              <Button
-                variant="secondary"
-                onClick={validateFormScale}
-                disabled={!user || formValidating || !form.arUrl || (!form.widthCm && !form.depthCm && !form.heightCm)}
-              >
-                {formValidating ? "Validando..." : "Probar escala"}
-              </Button>
+              {activeTab === "ar" && (<><span className="text-center">Estado AR</span><span className="text-center">Medidas</span></>)}
+              {activeTab === "stock" && (<><span className="text-center">En Stock</span><span className="text-center">Cantidad</span></>)}
+              <span className="text-right">Acciones</span>
             </div>
-            {formValidation && (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                {"error" in formValidation ? (
-                  <p className="font-semibold text-red-600">{formValidation.error}</p>
-                ) : formValidation.ok ? (
-                  <p className="font-semibold text-emerald-700">Escala OK</p>
-                ) : (
-                  <p className="font-semibold text-amber-700">Escala NO coincide</p>
-                )}
-                {"error" in formValidation ? null : (
-                  <div className="mt-1 flex flex-wrap gap-3 text-slate-700">
-                    <span>GLB: {formValidation.sizeCm.width}×{formValidation.sizeCm.depth}×{formValidation.sizeCm.height} cm</span>
-                    <span>Esperado: {formValidation.expected.width ?? "?"}×{formValidation.expected.depth ?? "?"}×{formValidation.expected.height ?? "?"} cm</span>
-                    {formValidation.suggestion && (
-                      <span className="font-semibold">Sugerido factor: {formValidation.suggestion.factor.toFixed(3)}</span>
-                    )}
+
+            {/* Rows */}
+            {pagedProducts.map((p) => {
+              const vr = validation[p.id];
+              const hasDim = p.widthCm || p.depthCm || p.heightCm;
+
+              return (
+                <div key={p.id} className={`grid grid-cols-1 sm:grid-cols-[44px_1fr_120px_120px_100px_100px] gap-2 px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors items-center ${selectedIds.has(p.id) ? "bg-blue-50/50" : ""}`}>
+                  {/* Checkbox */}
+                  <div className="text-center hidden sm:block">
+                    <input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 accent-[#0058a3]"
+                      checked={selectedIds.has(p.id)}
+                      onChange={(e) => { const n = new Set(selectedIds); e.target.checked ? n.add(p.id) : n.delete(p.id); setSelectedIds(n); }} />
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="px-4 py-2 flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <Input
-                placeholder="Buscar productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-              />
-              <select
-                className="rounded border px-2 py-1 text-sm"
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-              >
-                <option value="">Categoría</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <select
-                className="rounded border px-2 py-1 text-sm"
-                value={filterRoom}
-                onChange={(e) => setFilterRoom(e.target.value)}
-              >
-                <option value="">Ambiente</option>
-                {rooms.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <select
-                className="rounded border px-2 py-1 text-sm"
-                value={filterFeatured}
-                onChange={(e) => setFilterFeatured(e.target.value as any)}
-              >
-                <option value="">Destacado</option>
-                <option value="yes">Sí</option>
-                <option value="no">No</option>
-              </select>
-              <select
-                className="rounded border px-2 py-1 text-sm"
-                value={filterInStock}
-                onChange={(e) => setFilterInStock(e.target.value as any)}
-              >
-                <option value="">Stock</option>
-                <option value="yes">En stock</option>
-                <option value="no">Agotado</option>
-              </select>
-              <Button variant="secondary" onClick={exportCsv} disabled={!products.length}>
-                Exportar CSV
-              </Button>
-              <input
-                type="file"
-                accept="text/csv"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleImportFile(f);
-                }}
-              />
-              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                Importar CSV
-              </Button>
+                  {/* Product name */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt="" className="h-9 w-9 rounded-lg object-cover border border-slate-200 cursor-pointer shrink-0 hover:border-[#0058a3] transition-colors"
+                        onClick={() => setPreviewImageUrl(p.imageUrl || null)} />
+                    ) : (
+                      <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0"><ImageIcon size={14} className="text-slate-400" /></div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
+                      <p className="text-[11px] text-slate-500 truncate">#{p.id} · {p.slug}</p>
+                    </div>
+                  </div>
+
+                  {/* General tab columns */}
+                  {activeTab === "general" && (
+                    <>
+                      <span className="text-sm font-bold text-slate-900 hidden sm:block">${Number(p.price).toLocaleString("es-AR")}</span>
+                      <div className="hidden sm:flex flex-col gap-0.5">
+                        {p.category && <span className="inline-flex w-fit rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{p.category}</span>}
+                        {p.room && <span className="text-[10px] text-slate-500">{p.room}</span>}
+                      </div>
+                      {user?.role === "ADMIN" && <span className="text-xs text-slate-600 hidden sm:block truncate">{p.store?.name || "—"}</span>}
+                    </>
+                  )}
+
+                  {/* AR tab columns */}
+                  {activeTab === "ar" && (
+                    <>
+                      <div className="text-center hidden sm:block">
+                        {(p.glbUrl || p.arUrl) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><Check size={10} /> Ready</span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">No AR</span>
+                        )}
+                      </div>
+                      <div className="text-center hidden sm:block text-xs text-slate-600">
+                        {hasDim ? `${p.widthCm ?? "?"}×${p.depthCm ?? "?"}×${p.heightCm ?? "?"}` : <span className="text-amber-600 font-semibold text-[10px]"><AlertTriangle size={10} className="inline" /> Sin medidas</span>}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Stock tab columns */}
+                  {activeTab === "stock" && (
+                    <>
+                      <div className="text-center hidden sm:block">
+                        <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-emerald-500" checked={p.inStock ?? false}
+                          onChange={(e) => updateProductField(p.id, { inStock: e.target.checked })} />
+                      </div>
+                      <div className="text-center hidden sm:block">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button onClick={() => updateProductField(p.id, { stockQty: Math.max(0, (p.stockQty ?? 0) - 1) })}
+                            className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors">−</button>
+                          <span className={`text-sm font-bold w-8 text-center ${(p.stockQty ?? 0) < 5 ? "text-red-600" : "text-slate-900"}`}>{p.stockQty ?? 0}</span>
+                          <button onClick={() => updateProductField(p.id, { stockQty: (p.stockQty ?? 0) + 1 })}
+                            className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors">+</button>
+                          {(p.stockQty ?? 0) < 5 && <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">Bajo</span>}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-end gap-1">
+                    {activeTab === "ar" && p.arUrl && (
+                      <>
+                        <ARPreview arUrl={p.arUrl ?? undefined} glbUrl={p.glbUrl ?? undefined} usdzUrl={p.usdzUrl ?? undefined} productId={p.id} productName={p.name} widthCm={p.widthCm ?? undefined} depthCm={p.depthCm ?? undefined} heightCm={p.heightCm ?? undefined} />
+                        <button onClick={() => validate(p)} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 flex items-center justify-center transition-colors" title="Validar escala">
+                          <Check size={14} />
+                        </button>
+                      </>
+                    )}
+                    {p.featured ? (
+                      <button onClick={() => updateProductField(p.id, { featured: false })} title="Quitar destacado" className="w-7 h-7 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center"><Star size={14} fill="currentColor" /></button>
+                    ) : (
+                      <button onClick={() => updateProductField(p.id, { featured: true })} title="Destacar" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-400 hover:text-amber-500 flex items-center justify-center transition-colors"><Star size={14} /></button>
+                    )}
+                    <button onClick={() => openEdit(p)} title="Editar" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-[#0058a3]/10 text-slate-500 hover:text-[#0058a3] flex items-center justify-center transition-colors"><Pencil size={14} /></button>
+                    <button onClick={() => { setLogProductId(p.id); setShowLogModal(true); }} title="Historial" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"><History size={14} /></button>
+                    <button onClick={() => deleteProduct(p.id)} title="Borrar" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"><Trash2 size={14} /></button>
+                  </div>
+
+                  {/* Validation result (AR tab only) */}
+                  {activeTab === "ar" && vr && (
+                    <div className="sm:col-start-2 sm:col-span-5 text-xs pb-1">
+                      {"error" in vr ? (
+                        <span className="text-red-600 flex items-center gap-1">❌ {vr.error}</span>
+                      ) : vr.ok ? (
+                        <span className="text-emerald-600 flex items-center gap-1">✅ Escala OK</span>
+                      ) : (
+                        <span className="text-amber-600 flex items-center gap-1">⚠️ Error de escala {vr.suggestion?.factor ? `(sugiere ×${vr.suggestion.factor.toFixed(3)})` : ""}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Pagination */}
+            <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-600 border-t border-slate-200">
+              <span>Página {page} de {totalPages} · {sortedProducts.length} resultado{sortedProducts.length !== 1 ? "s" : ""}</span>
+              <div className="flex items-center gap-1">
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold hover:bg-slate-50 transition-colors disabled:opacity-40">← Anterior</button>
+                <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold hover:bg-slate-50 transition-colors disabled:opacity-40">Siguiente →</button>
+              </div>
             </div>
-            <div className="flex gap-2 flex-wrap mt-2 items-center">
-              {selectedIds.size > 0 && (
-                <span className="font-semibold text-emerald-700 text-sm mr-2">
-                  {selectedIds.size} seleccionado{selectedIds.size > 1 ? "s" : ""}
-                </span>
+          </>
+        )}
+      </div>
+
+      {/* ── Image preview overlay ── */}
+      {previewImageUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewImageUrl(null)}>
+          <img src={previewImageUrl} className="max-h-[85vh] max-w-[85vw] rounded-xl shadow-2xl" alt="" />
+        </div>
+      )}
+
+      {/* ── Product Log Modal ── */}
+      {showLogModal && logProductId && (
+        <ProductLogModal productId={logProductId} apiBase={apiBase} onClose={() => setShowLogModal(false)} />
+      )}
+
+      {/* ── CSV Import Preview Modal ── */}
+      {showImportPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowImportPreview(false)}>
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Vista previa de importación</h2>
+              <p className="text-xs text-slate-500">{pendingImportRows.length} filas encontradas</p>
+            </div>
+            <div className="px-6 py-4 max-h-[50vh] overflow-auto">
+              <table className="min-w-full text-xs">
+                <thead><tr>{previewHeaders.map((h) => <th key={h} className="px-2 py-1 bg-slate-50 font-bold text-slate-600 text-left">{h}</th>)}</tr></thead>
+                <tbody>{previewRows.map((r, ri) => <tr key={ri}>{r.map((v, ci) => <td key={ci} className="px-2 py-1 border-t border-slate-100">{v}</td>)}</tr>)}</tbody>
+              </table>
+              {importErrors.length > 0 && (
+                <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+                  {importErrors.map((e, i) => <p key={i}>{e}</p>)}
+                </div>
               )}
-              <Button variant="ghost" onClick={() => applyBulkAction("featured")} disabled={!selectedIds.size}>
-                Marcar destacados
-              </Button>
-              <Button variant="ghost" onClick={() => applyBulkAction("unfeatured")} disabled={!selectedIds.size}>
-                Quitar destacado
-              </Button>
-              <Button variant="ghost" onClick={() => applyBulkAction("inStock")} disabled={!selectedIds.size}>
-                Marcar en stock
-              </Button>
-              <Button variant="ghost" onClick={() => applyBulkAction("outStock")} disabled={!selectedIds.size}>
-                Marcar sin stock
-              </Button>
-              <Button variant="secondary" onClick={() => applyBulkAction("delete")} disabled={!selectedIds.size}>
-                Borrar seleccionados
-              </Button>
             </div>
-            {importErrors.length > 0 && (
-              <div className="text-xs text-red-600">
-                <p>Errores durante importación:</p>
-                <ul className="list-disc ml-5">
-                  {importErrors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {showConfirmImport && (
-              <div className="border-t border-slate-200 pt-2">
-                <p className="text-sm font-semibold">Vista previa de importación</p>
-                <div className="overflow-x-auto mt-1 text-xs">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr>
-                        {previewHeaders.map((h) => (
-                          <th key={h} className="px-2 py-1 bg-slate-100">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewRows.map((r, ri) => (
-                        <tr key={ri}>
-                          {r.map((v, ci) => (
-                            <td key={ci} className="px-2 py-1">{v}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <Button
-                    variant="primary"
-                    onClick={async () => {
-                      setShowConfirmImport(false);
-                      const hdr = previewHeaders;
-                      const itemsPayload = pendingImportRows.map((vals) => {
-                        const obj: any = {};
-                        hdr.forEach((h, idx) => {
-                          obj[h] = vals[idx] ?? "";
-                        });
-                        return {
-                          id: obj.id ? Number(obj.id) : undefined,
-                          storeId: obj.storeId ? Number(obj.storeId) : undefined,
-                          name: obj.name,
-                          slug: obj.slug,
-                          description: obj.description || undefined,
-                          category: obj.category || undefined,
-                          room: obj.room || undefined,
-                          style: obj.style || undefined,
-                          color: obj.color || undefined,
-                          price: obj.price ? Number(obj.price) : 0,
-                          arUrl: obj.arUrl || undefined,
-                          widthCm: obj.widthCm ? Number(obj.widthCm) : undefined,
-                          depthCm: obj.depthCm ? Number(obj.depthCm) : undefined,
-                          heightCm: obj.heightCm ? Number(obj.heightCm) : undefined,
-                          imageUrl: obj.imageUrl || undefined,
-                          stockQty: obj.stockQty ? Number(obj.stockQty) : undefined,
-                          inStock: obj.inStock === "1" || obj.inStock === "true",
-                        };
-                      });
-
-                      try {
-                        const res = await fetch(`${apiBase}/api/admin/products/bulk`, {
-                          method: "POST",
-                          headers: { "content-type": "application/json" },
-                          credentials: "include",
-                          body: JSON.stringify(itemsPayload),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) {
-                          setImportErrors([data.error || "Falla en importar", data.detail || ""]);
-                        } else {
-                          setImportErrors([]);
-                        }
-                      } catch (err) {
-                        setImportErrors([(err as Error).message]);
-                      }
-
-                      await loadProducts();
-                    }}
-                  >
-                    Confirmar importación
-                  </Button>
-                  <Button variant="ghost" onClick={() => setShowConfirmImport(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-800">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={pagedProducts.length > 0 && pagedProducts.every((p) => selectedIds.has(p.id))}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setSelectedIds((prev) => {
-                          const nxt = new Set(prev);
-                          pagedProducts.forEach((p) => {
-                            if (checked) nxt.add(p.id);
-                            else nxt.delete(p.id);
-                          });
-                          return nxt;
-                        });
-                      }}
-                    />
-                  </th>
-                  <th className="px-4 py-3 cursor-pointer" onClick={() => {
-                    const field: any = "name";
-                    if (sortField === field) {
-                      setSortDir(sortDir === "asc" ? "desc" : "asc");
-                    } else {
-                      setSortField(field);
-                      setSortDir("asc");
-                    }
-                  }}>
-                    Nombre {sortField === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="px-4 py-3">Tienda</th>
-                  <th className="px-4 py-3 cursor-pointer" onClick={() => {
-                    const field: any = "price";
-                    if (sortField === field) {
-                      setSortDir(sortDir === "asc" ? "desc" : "asc");
-                    } else {
-                      setSortField(field);
-                      setSortDir("asc");
-                    }
-                  }}>
-                    Precio {sortField === "price" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th className="px-4 py-3">Media</th>
-                  <th className="px-4 py-3">Dimensiones</th>
-                  <th className="px-4 py-3">Meta</th>
-                  <th className="px-4 py-3">Validación</th>
-                  <th className="px-4 py-3">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedProducts.length === 0 && (
-                  <tr>
-                    <td className="px-4 py-4 text-slate-500" colSpan={8}>
-                      {loading ? "Cargando..." : "Sin productos"}
-                    </td>
-                  </tr>
-                )}
-                {pagedProducts.map((p) => {
-                  const val = validation[p.id];
-                  const valText = val
-                    ? "error" in val
-                      ? val.error
-                      : val.ok
-                        ? "Escala OK"
-                        : "Escala NO"
-                    : "-";
-                  return (
-                    <tr key={p.id} className={`border-t border-slate-100 hover:bg-slate-50 transition-colors ${selectedIds.has(p.id) ? "bg-blue-50/50" : ""}`}>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(p.id)}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setSelectedIds((prev) => {
-                              const nxt = new Set(prev);
-                              if (checked) nxt.add(p.id);
-                              else nxt.delete(p.id);
-                              return nxt;
-                            });
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-900">{p.name}</span>
-                            {p.featured ? (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Destacado</span>
-                            ) : null}
-                          </div>
-                          {p.description ? <p className="text-xs text-slate-600 overflow-hidden text-ellipsis whitespace-nowrap">{p.description}</p> : null}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">{p.store?.name ?? "-"}</td>
-                      <td className="px-4 py-3 text-slate-700 align-top">${typeof p.price === "string" ? p.price : p.price.toLocaleString("es-AR")}</td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex items-center gap-2">
-                          {p.imageUrl ? (
-                            <img
-                              src={p.imageUrl}
-                              alt={p.name}
-                              className="h-10 w-10 object-cover rounded cursor-pointer"
-                              onClick={() => setPreviewImageUrl(p.imageUrl ?? null)}
-                            />
-                          ) : null}
-                          <div className="flex flex-wrap gap-2 text-xs">
-                            <span className={`rounded-full px-2 py-1 ${p.arUrl ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                              {p.arUrl ? "AR" : "Sin AR"}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        {p.widthCm ?? "?"}×{p.depthCm ?? "?"}×{p.heightCm ?? "?"} cm
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {p.category && <span className="rounded-full bg-slate-100 px-2 py-1">Cat: {p.category}</span>}
-                          {p.room && <span className="rounded-full bg-slate-100 px-2 py-1">Amb: {p.room}</span>}
-                          {p.style && <span className="rounded-full bg-slate-100 px-2 py-1">Est: {p.style}</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-col gap-1 text-xs">
-                          <span className={
-                            "font-semibold " +
-                            (valText.includes("OK")
-                              ? "text-emerald-700"
-                              : valText.includes("NO")
-                                ? "text-amber-700"
-                                : valText.includes("error")
-                                  ? "text-red-600"
-                                  : "text-slate-700")
-                          }>
-                            {valText.includes("OK") && "✅ "}
-                            {valText.includes("NO") && "⚠️ "}
-                            {valText.includes("error") && "❌ "}
-                            {valText}
-                          </span>
-                          {rowError[p.id] && <span className="text-amber-700">{rowError[p.id]}</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="md" variant="secondary" onClick={() => validate(p)} disabled={!user || loading}>
-                            Validar
-                          </Button>
-                          <Button variant="ghost" onClick={() => showProductLogs(p.id)}>
-                            Logs
-                          </Button>
-                          {p.arUrl && (
-                            <ARPreview
-                              arUrl={p.arUrl}
-                              productId={p.id}
-                              productName={p.name}
-                              widthCm={p.widthCm ?? undefined}
-                              depthCm={p.depthCm ?? undefined}
-                              heightCm={p.heightCm ?? undefined}
-                            />
-                          )}
-                          <Button size="md" variant="ghost" onClick={() => onEdit(p)} disabled={!user || loading}>
-                            Editar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            title={p.featured ? "Quitar destacado" : "Marcar como destacado"}
-                            onClick={() => updateProductField(p.id, { featured: !p.featured })}
-                            disabled={!user || loading}
-                          >
-                            {p.featured ? "★" : "☆"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            title={p.inStock ? "Marcar como sin stock" : "Marcar en stock"}
-                            onClick={() => updateProductField(p.id, { inStock: !p.inStock })}
-                            disabled={!user || loading}
-                          >
-                            {p.inStock ? "✓" : "✗"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            title="Actualizar stock"
-                            onClick={async () => {
-                              const ans = prompt("Nueva cantidad en stock", String(p.stockQty ?? ""));
-                              if (ans === null) return;
-                              const qty = Number(ans);
-                              if (Number.isNaN(qty)) {
-                                alert("Cantidad inválida");
-                                return;
-                              }
-                              await updateProductField(p.id, { stockQty: qty });
-                            }}
-                            disabled={!user || loading}
-                          >
-                            🧾
-                          </Button>
-                          <Button
-                            size="md"
-                            variant="ghost"
-                            onClick={async () => {
-                              if (!user) {
-                                setError("Debes iniciar sesión");
-                                return;
-                              }
-                              if (!confirm("¿Borrar producto?")) return;
-                              try {
-                                const res = await fetch(`${apiBase}/api/admin/products/${p.id}`, {
-                                  method: "DELETE",
-                                  credentials: "include",
-                                });
-                                if (res.status === 401) {
-                                  setUser(null);
-                                  setError("Sesión expirada");
-                                  return;
-                                }
-                                if (!res.ok) throw new Error(`Error ${res.status}`);
-                                await loadProducts();
-                              } catch (err) {
-                                setRowError((prev) => ({ ...prev, [p.id]: (err as Error).message }));
-                              }
-                            }}
-                            disabled={!user || loading}
-                          >
-                            Borrar
-                          </Button>
-                        </div>
-                        {rowError[p.id] && <p className="text-xs font-semibold text-amber-700">{rowError[p.id]}</p>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-2 flex items-center justify-between text-xs text-slate-600">
-            <div>
-              Página {page} de {Math.max(1, Math.ceil(sortedProducts.length / pageSize))}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                ← Anterior
-              </Button>
-              <Button variant="ghost" disabled={page * pageSize >= sortedProducts.length} onClick={() => setPage((p) => p + 1)}>
-                Siguiente →
-              </Button>
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button onClick={() => setShowImportPreview(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>
+              <button onClick={submitImport} disabled={saving} className="px-4 py-2 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}Confirmar importación
+              </button>
             </div>
           </div>
         </div>
-      </Container>
+      )}
+
+      {/* ── Slide-out Product Drawer ── */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={closeDrawer} />
+          <div className="absolute right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+              <h2 className="text-lg font-bold text-slate-900">{form.id ? "Editar producto" : "Nuevo producto"}</h2>
+              <button onClick={closeDrawer} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"><X size={16} /></button>
+            </div>
+
+            {/* Drawer body — scrollable */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Tienda</label>
+                  <select disabled={user?.role === "STORE"} value={form.storeId ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value ? Number(e.target.value) : undefined }))}
+                    className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] ${formErrors.storeId ? "border-red-300" : "border-slate-200"}`}>
+                    <option value="">Seleccionar</option>
+                    {(user?.role === "STORE" && user.storeId ? stores.filter((s) => s.id === user.storeId) : stores).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  {formErrors.storeId && <p className="text-[10px] text-red-600 mt-0.5">{formErrors.storeId}</p>}
+                </div>
+                {F("Nombre", "name")}
+                {F("Slug", "slug")}
+              </div>
+              {F("Descripción", "description", { rows: 2, span: 2 })}
+              <div className="grid grid-cols-3 gap-3">
+                {F("Precio", "price", { type: "number" })}
+                {F("Categoría", "category")}
+                {F("Ambiente", "room")}
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {F("Estilo", "style")}
+                {F("Color", "color")}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Stock</label>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={form.inStock} onChange={(e) => setForm((f) => ({ ...f, inStock: e.target.checked }))} className="h-4 w-4 rounded accent-emerald-500" />
+                    <input type="number" placeholder="Qty" value={form.stockQty} onChange={(e) => setForm((f) => ({ ...f, stockQty: e.target.value }))}
+                      className="w-20 px-2 py-1.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#0058a3]" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dimensions */}
+              <div>
+                <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Dimensiones (cm)</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {F("Ancho", "widthCm", { type: "number" })}
+                  {F("Profund.", "depthCm", { type: "number" })}
+                  {F("Alto", "heightCm", { type: "number" })}
+                </div>
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Imagen principal</label>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="https://..." value={form.imageUrl}
+                    onChange={(e) => { setForm((f) => ({ ...f, imageUrl: e.target.value })); setFormErrors((fe) => { const { imageUrl: _, ...r } = fe; return r; }); }}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] ${formErrors.imageUrl ? "border-red-300" : "border-slate-200"}`} />
+                  <FileUpload apiBase={apiBase} endpoint="/api/upload/image" accept="image/*" buttonText="Subir"
+                    onUploadSuccess={(url) => setForm((f) => ({ ...f, imageUrl: url }))} />
+                </div>
+                {form.imageUrl && <img src={form.imageUrl} alt="" className="mt-2 h-20 rounded-lg object-cover border" />}
+              </div>
+
+              {/* AR URLs - Separate GLB and USDZ fields */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Modelo AR GLB</label>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="https://...modelo.glb" value={form.glbUrl}
+                    onChange={(e) => { setForm((f) => ({ ...f, glbUrl: e.target.value })); setFormErrors((fe) => { const { glbUrl: _, ...r } = fe; return r; }); }}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] ${formErrors.glbUrl ? "border-red-300" : "border-slate-200"}`} />
+                  <FileUpload apiBase={apiBase} endpoint="/api/upload/model" accept=".glb" buttonText="Subir GLB"
+                    onUploadSuccess={(url) => setForm((f) => ({ ...f, glbUrl: url }))} />
+                </div>
+                {formErrors.glbUrl && <p className="text-[10px] text-red-600 mt-0.5">{formErrors.glbUrl}</p>}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Modelo AR USDZ (iOS)</label>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="https://...modelo.usdz" value={form.usdzUrl}
+                    onChange={(e) => { setForm((f) => ({ ...f, usdzUrl: e.target.value })); setFormErrors((fe) => { const { usdzUrl: _, ...r } = fe; return r; }); }}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] ${formErrors.usdzUrl ? "border-red-300" : "border-slate-200"}`} />
+                  <FileUpload apiBase={apiBase} endpoint="/api/upload/model" accept=".usdz" buttonText="Subir USDZ"
+                    onUploadSuccess={(url) => setForm((f) => ({ ...f, usdzUrl: url }))} />
+                </div>
+                {formErrors.usdzUrl && <p className="text-[10px] text-red-600 mt-0.5">{formErrors.usdzUrl}</p>}
+              </div>
+
+              {/* Legacy AR URL field (for backward compatibility) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">Modelo AR (Legacy - JSON)</label>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="https://...modelo.glb (o JSON legacy)" value={form.arUrl}
+                    onChange={(e) => { setForm((f) => ({ ...f, arUrl: e.target.value })); setFormErrors((fe) => { const { arUrl: _, ...r } = fe; return r; }); }}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-[#0058a3] ${formErrors.arUrl ? "border-red-300" : "border-slate-200"}`} />
+                  <FileUpload apiBase={apiBase} endpoint="/api/upload/model" accept=".glb,.usdz" buttonText="Subir"
+                    onUploadSuccess={(url) => setForm((f) => ({ ...f, arUrl: url }))} />
+                </div>
+                {formErrors.arUrl && <p className="text-[10px] text-red-600 mt-0.5">{formErrors.arUrl}</p>}
+              </div>
+
+              {/* AI 3D Generator */}
+              {form.id && (
+                <AI3DGenerator productId={form.id} productName={form.name || "Product"}
+                  currentImageUrl={form.imageUrl} currentArUrl={form.arUrl} currentGlbUrl={form.glbUrl} currentUsdzUrl={form.usdzUrl}
+                  onSuccess={(glbUrl, usdzUrl) => { setForm((f) => ({ ...f, glbUrl: glbUrl, usdzUrl: usdzUrl || "" })); loadProducts(); }} />
+              )}
+
+              {/* Featured toggle */}
+              <div className="flex items-center gap-3 py-2">
+                <input type="checkbox" checked={form.featured} onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
+                  className="h-4 w-4 rounded accent-amber-500" />
+                <span className="text-sm font-semibold text-slate-700">Producto destacado</span>
+              </div>
+            </div>
+
+            {/* Drawer footer */}
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <button onClick={closeDrawer} className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">Cancelar</button>
+              <button onClick={submitForm} disabled={saving}
+                className="px-6 py-2.5 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors shadow-sm disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
+                {form.id ? "Guardar cambios" : "Crear producto"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

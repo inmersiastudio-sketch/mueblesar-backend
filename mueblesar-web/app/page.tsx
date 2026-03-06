@@ -6,15 +6,18 @@ import Link from "next/link";
 import { Button } from "./components/ui/Button";
 import { Container } from "./components/layout/Container";
 import { ProductCard } from "./components/products/ProductCard";
+import { MarketplaceProductCard } from "./components/products/MarketplaceProductCard";
+import { DynamicCategorySlider } from "./components/ui/DynamicCategorySlider";
 import { fetchProducts, fetchStores } from "./lib/api";
+import { Store } from "lucide-react";
 
 const categories = [
-  { key: "living", label: "Living" },
-  { key: "comedor", label: "Comedor" },
-  { key: "dormitorio", label: "Dormitorio" },
-  { key: "cocina", label: "Cocina" },
-  { key: "oficina", label: "Oficina" },
-  { key: "exterior", label: "Exterior" },
+  { key: "living", label: "Living", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800" },
+  { key: "comedor", label: "Comedor", image: "https://images.unsplash.com/photo-1604578762246-41134e37f9cc?auto=format&fit=crop&q=80&w=800" },
+  { key: "dormitorio", label: "Dormitorio", image: "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=80&w=800" },
+  { key: "cocina", label: "Cocina", image: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=800" },
+  { key: "oficina", label: "Oficina", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&q=80&w=800" },
+  { key: "exterior", label: "Exterior", image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800" },
 ];
 
 export default async function Home() {
@@ -26,105 +29,141 @@ export default async function Home() {
   const featured = products.filter((p) => p.featured !== false).slice(0, 6);
 
   return (
-    <div className="space-y-16 pb-16">
-      <section className="bg-white py-12 shadow-sm">
-        <Container>
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div className="space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">Amobly Córdoba</p>
-              <h1 className="text-4xl font-bold leading-tight text-slate-900">
-                Catálogo curado de mueblerías locales
+    <div className="space-y-0 pb-0">
+      {/* Hero Section - IKEA Style */}
+      <section className="relative overflow-hidden bg-primary min-h-[400px] md:min-h-[500px] flex items-center">
+        <Container className="relative z-10 py-12 md:py-20">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="space-y-6">
+              <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
+                Muebles para tu hogar
               </h1>
-              <p className="text-base text-slate-700">
-                Explora sofás, mesas y más. Contactá por WhatsApp con cada mueblería y pedí detalles al instante.
+              <p className="text-lg text-white/80 leading-relaxed max-w-lg">
+                El catálogo curado de mueblerías cordobesas. Explorá en 3D y contactá directamente por WhatsApp.
               </p>
-              <div className="flex flex-wrap gap-3">
-                <Button asChild>
-                  <Link href="/productos">Ver productos</Link>
+              <div className="flex flex-col sm:flex-row gap-4 pt-2">
+                <Button asChild size="lg" className="bg-[#ffe815] text-slate-800 font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 transition-all duration-300 px-8 border-none ring-0">
+                  <Link href="/productos">Explorar catálogo</Link>
                 </Button>
-                <Button variant="secondary" asChild>
+                <Button variant="secondary" asChild size="lg" className="bg-transparent border-2 border-white/40 font-bold text-white hover:bg-white/10 hover:-translate-y-0.5 transition-all duration-300">
                   <Link href="/mueblerias">Ver mueblerías</Link>
                 </Button>
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6 shadow-inner">
-              <div className="text-sm font-semibold text-slate-700">Filtros inspirados en IKEA/Wayfair</div>
-              <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                <li>• Navegación dual por ambiente y tipo de producto</li>
-                <li>• Botón WhatsApp directo en PDP</li>
-                <li>• Diseño mobile-first y carga rápida</li>
-              </ul>
+            <div className="hidden md:block">
+              <img
+                src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1000"
+                alt="Muebles de diseño"
+                className="w-full h-auto object-cover rounded-lg shadow-xl"
+              />
             </div>
           </div>
         </Container>
       </section>
 
-      <section>
+      {/* Categories - Large Grid */}
+      <section className="bg-white py-8">
         <Container>
-          <div className="flex items-center justify-between pb-4">
-            <h2 className="text-2xl font-semibold text-slate-900">Ambientes</h2>
-            <Link href="/productos" className="text-sm font-semibold text-primary">
-              Ver todo
+          <div className="flex items-center justify-between pb-6">
+            <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Explorá por ambiente</h2>
+            <Link href="/productos" className="hidden md:inline-flex text-sm font-bold text-gray-900 hover:underline underline-offset-4">
+              Ver todos →
             </Link>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((cat) => (
+
+          {/* Grid Layout - 3 columns on desktop, 2 on mobile */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            {categories.map((cat, index) => (
               <Link
                 key={cat.key}
                 href={`/productos?room=${cat.key}`}
-                className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className={`group relative overflow-hidden bg-gray-100 ${index === 0 ? 'col-span-2 md:col-span-2 aspect-[16/9] md:aspect-[2/1]' : 'aspect-square'
+                  }`}
               >
-                <div className="text-lg font-semibold text-slate-900">{cat.label}</div>
-                <div className="text-sm text-slate-600">Explorá piezas para {cat.label.toLowerCase()}.</div>
+                <img
+                  src={cat.image}
+                  alt={cat.label}
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
+                <div className="absolute inset-x-0 bottom-0 p-4 md:p-6">
+                  <h3 className="text-lg md:text-2xl font-bold text-white drop-shadow-lg">
+                    {cat.label}
+                  </h3>
+                  <span className="inline-flex items-center gap-1 text-sm text-white/90 font-medium mt-1 group-hover:underline">
+                    Ver productos
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </div>
               </Link>
             ))}
           </div>
-        </Container>
-      </section>
 
-      <section>
-        <Container>
-          <div className="flex items-center justify-between pb-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">Destacados</p>
-              <h2 className="text-2xl font-semibold text-slate-900">Productos seleccionados</h2>
-            </div>
-            <Link href="/productos" className="text-sm font-semibold text-primary">
-              Ver catálogo
+          <div className="mt-6 text-center md:hidden">
+            <Link href="/productos" className="inline-block w-full bg-dark text-white font-bold py-3 px-6 text-sm transition hover:bg-gray-800">
+              Ver todos los ambientes
             </Link>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {(featured.length ? featured : products).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
           </div>
         </Container>
       </section>
 
-      <section>
+      {/* Featured Products */}
+      <section className="bg-gray-50 py-12">
+        <DynamicCategorySlider
+          subtitle="Destacados"
+          title="Productos populares"
+          viewAllLink="/productos"
+          viewAllText="Ver catálogo"
+        >
+          {(featured.length ? featured : products).map((product) => (
+            <MarketplaceProductCard key={product.id} product={product} />
+          ))}
+        </DynamicCategorySlider>
+      </section>
+
+      {/* Stores Section */}
+      <section className="bg-white py-12">
         <Container>
-          <div className="flex items-center justify-between pb-4">
+          <div className="flex items-center justify-between pb-6">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">Mueblerías</p>
-              <h2 className="text-2xl font-semibold text-slate-900">Aliados locales</h2>
+              <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Mueblerías aliadas</h2>
+              <p className="text-sm text-gray-500 mt-1">Tiendas locales de Córdoba</p>
             </div>
-            <Link href="/mueblerias" className="text-sm font-semibold text-primary">
-              Ver todas
+            <Link href="/mueblerias" className="hidden md:inline-flex text-sm font-bold text-gray-900 hover:underline underline-offset-4">
+              Ver todas →
             </Link>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {(stores.slice(0, 4) || []).map((store) => (
-              <div key={store.id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-                <div className="text-lg font-semibold text-slate-900">{store.name}</div>
-                <p className="text-sm text-slate-700">{store.description ?? "Mueblería local de Córdoba"}</p>
-                <div className="pt-2 text-xs text-slate-500">WhatsApp: {store.whatsapp ?? "N/D"}</div>
-              </div>
+              <Link
+                key={store.id}
+                href={`/mueblerias/${store.slug}`}
+                className="group relative rounded-2xl border border-slate-200 bg-white p-6 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#0058a3]/30"
+              >
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-[#002f5e] group-hover:bg-[#002f5e] group-hover:text-white transition-colors">
+                  <Store size={28} strokeWidth={1.5} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#0058a3] transition-colors">{store.name}</h3>
+                <p className="text-sm text-slate-500 mt-2 line-clamp-2 max-w-[200px]">{store.description ?? "Mueblería local de Córdoba"}</p>
+                <div className="mt-5 w-full">
+                  <span className="inline-flex w-full items-center justify-center rounded-full bg-slate-50 border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors group-hover:bg-[#0058a3] group-hover:text-white group-hover:border-[#0058a3]">
+                    Ver tienda &rarr;
+                  </span>
+                </div>
+              </Link>
             ))}
             {stores.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-500">
-                Sin datos de mueblerías aún. Cargá el seed o agrega registros.
+              <div className="col-span-full border-2 border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+                Sin datos de mueblerías aún.
               </div>
             )}
+          </div>
+          <div className="mt-8 text-center md:hidden">
+            <Link href="/mueblerias" className="inline-block bg-primary text-white font-bold py-3 px-8 text-sm transition hover:bg-primary-600">
+              Ver todas las mueblerías
+            </Link>
           </div>
         </Container>
       </section>

@@ -13,7 +13,9 @@ declare global {
 }
 
 type Props = {
-  arUrl: string;
+  arUrl?: string;
+  glbUrl?: string;
+  usdzUrl?: string;
   productId: number;
   storeId?: number | null;
   productName: string;
@@ -23,7 +25,7 @@ type Props = {
 };
 
 type Vec3 = { x: number; y: number; z: number };
-export function ARPreview({ arUrl, productId, storeId, productName, widthCm, depthCm, heightCm }: Props) {
+export function ARPreview({ arUrl, glbUrl: propGlbUrl, usdzUrl: propUsdzUrl, productId, storeId, productName, widthCm, depthCm, heightCm }: Props) {
   const [open, setOpen] = useState(false);
   const [origin, setOrigin] = useState<string>("");
   const [isMobile, setIsMobile] = useState(false);
@@ -58,9 +60,26 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
   const sentRef = useRef(false);
 
   const { glbUrl, glbUrlOriginal, iosUrl, androidIntent, sceneViewerHttps } = useMemo(() => {
-    const lower = arUrl.toLowerCase();
+    // Use new separate fields first, fallback to arUrl for backward compatibility
+    let parsedGlb = propGlbUrl || arUrl || "";
+    let parsedUsdz = propUsdzUrl;
+
+    // Check if arUrl (legacy) is still in the old dual-format JSON string from the backend
+    if (!propGlbUrl && arUrl) {
+      try {
+        const obj = JSON.parse(arUrl);
+        if (typeof obj === "object" && obj !== null && obj.glb) {
+          parsedGlb = obj.glb;
+          if (obj.usdz) parsedUsdz = obj.usdz;
+        }
+      } catch {
+        // It's a standard string, proceed normally
+      }
+    }
+
+    const lower = parsedGlb.toLowerCase();
     // Check if URL contains .glb (even with query params like ?Expires=...)
-    const glb = lower.includes(".glb") ? arUrl : undefined;
+    const glb = lower.includes(".glb") ? parsedGlb : undefined;
 
     // Proxy Meshy URLs through backend to avoid CORS (Meshy blocks direct browser requests)
     // Cloudinary URLs are accessed directly (no CORS issue, stable)
@@ -71,6 +90,8 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
 
     console.log('[ARPreview] URL computation:', {
       arUrl,
+      propGlbUrl,
+      propUsdzUrl,
       glb,
       proxiedGlb,
       apiBase,
@@ -78,24 +99,27 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
     });
 
     // iOS USDZ conversion (Scene Viewer doesn't work on iOS anyway)
-    const iosCandidate = glb ? arUrl.replace(/\.glb(\?.*)?$/, ".usdz$1") : arUrl.endsWith(".usdz") ? arUrl : undefined;
+    let iosCandidate = parsedUsdz;
+    if (!iosCandidate) {
+      iosCandidate = glb ? parsedGlb.replace(/\.glb(\?.*)?$/, ".usdz$1") : parsedGlb.endsWith(".usdz") ? parsedGlb : undefined;
+    }
 
     // For Scene Viewer: use DIRECT URL (Google servers can access without CORS)
-    const urlForMobile = glb ?? arUrl;
+    const urlForMobile = glb ?? parsedGlb;
     const intent = glb
-      ? `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(urlForMobile)}&mode=ar_preferred&title=${encodeURIComponent(productName)}#Intent;scheme=https;package=com.google.ar.core;end;`
+      ? `intent://arvr.google.com/scene-viewer/1.0?file=${urlForMobile}&mode=ar_preferred&title=${encodeURIComponent(productName)}#Intent;scheme=https;package=com.google.ar.core;end;`
       : undefined;
     const httpsViewer = glb
-      ? `https://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(urlForMobile)}&mode=ar_preferred&title=${encodeURIComponent(productName)}`
+      ? `https://arvr.google.com/scene-viewer/1.0?file=${urlForMobile}&mode=ar_preferred&title=${encodeURIComponent(productName)}`
       : undefined;
     return {
-      glbUrl: proxiedGlb ?? arUrl,           // For web model-viewer (proxied if Meshy)
+      glbUrl: proxiedGlb ?? parsedGlb,           // For web model-viewer (proxied if Meshy)
       glbUrlOriginal: urlForMobile,          // For QR/mobile (direct URL)
       iosUrl: iosCandidate,
-      androidIntent: intent ?? arUrl,
-      sceneViewerHttps: httpsViewer ?? arUrl
+      androidIntent: intent ?? parsedGlb,
+      sceneViewerHttps: httpsViewer ?? parsedGlb
     };
-  }, [arUrl, productName, apiBase]);
+  }, [arUrl, propGlbUrl, propUsdzUrl, productName, apiBase]);
 
   const dimensionsStr = useMemo(() => {
     if (!widthCm && !heightCm && !depthCm) return undefined;
@@ -147,16 +171,25 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
   }, [siteBase, glbUrlOriginal, iosUrl, productName]);
 
   const qrUnified = useMemo(() => {
-    // Use short URL for QR code to make it less dense and easier to scan
+    // If we're testing locally (localhost), the phone's network cannot resolve localhost:3000 or localhost:3001
+    // We must bypass our backend short-url and our frontend /ar redirect, and use direct Google/Apple URLs.
+    const isLocalhost = String(siteBase).includes("localhost") || String(apiBase).includes("localhost");
+
+    if (isLocalhost) {
+      const target = iosUrl || sceneViewerHttps || glbUrlOriginal;
+      return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(target)}`;
+    }
+
+    // Production logic: Use short URL for QR code to make it less dense
     if (productId && apiBase) {
       const shortUrl = `${apiBase}/api/short/ar/${productId}`;
       return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(shortUrl)}`;
     }
-    // Fallback to original logic
-    const badOrigin = redirectUrl.includes("localhost");
-    const target = !badOrigin && redirectUrl ? redirectUrl : iosUrl || sceneViewerHttps || glbUrlOriginal;
+
+    // Fallback logic
+    const target = redirectUrl ? redirectUrl : iosUrl || sceneViewerHttps || glbUrlOriginal;
     return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(target)}`;
-  }, [productId, apiBase, redirectUrl, iosUrl, sceneViewerHttps, glbUrlOriginal]);
+  }, [productId, apiBase, siteBase, redirectUrl, iosUrl, sceneViewerHttps, glbUrlOriginal]);
 
   useEffect(() => {
     if (!open) return;
@@ -356,11 +389,16 @@ export function ARPreview({ arUrl, productId, storeId, productName, widthCm, dep
       <Button
         variant="ghost"
         size="lg"
+        className="w-full rounded-full h-12 font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-2 transition-colors"
         onClick={() => {
           track("ar_click", { product: productName, hasIos: Boolean(iosUrl) });
           setOpen(true);
         }}
       >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v10l-2 1m-10-11l2-1m-2 1l2 1m-2-1v10l2 1m10-11l-2-1m-6-3l-2 1m2-1l2 1" />
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
         Ver en AR
       </Button>
 
