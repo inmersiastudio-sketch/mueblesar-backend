@@ -154,7 +154,7 @@ export function SearchBar() {
                 {results.stores.map((store) => (
                   <li key={store.id}>
                     <Link
-                      href={`/mueblerias/${store.slug}`}
+                      href={`/catalog/${store.slug}`}
                       onClick={() => {
                         setShowDropdown(false);
                         setQuery("");

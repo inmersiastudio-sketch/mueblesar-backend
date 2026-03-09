@@ -9,7 +9,9 @@ import { ProductCard } from "./components/products/ProductCard";
 import { MarketplaceProductCard } from "./components/products/MarketplaceProductCard";
 import { DynamicCategorySlider } from "./components/ui/DynamicCategorySlider";
 import { fetchProducts, fetchStores } from "./lib/api";
-import { Store } from "lucide-react";
+import { Store as StoreIcon, ArrowRight } from "lucide-react";
+import { StoreCard } from "./components/store/StoreCard";
+import type { Product, Store } from "@/types";
 
 const categories = [
   { key: "living", label: "Living", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800" },
@@ -26,7 +28,7 @@ export default async function Home() {
     fetchStores(),
   ]);
 
-  const featured = products.filter((p) => p.featured !== false).slice(0, 6);
+  const featured = products.filter((p: Product) => p.featured !== false).slice(0, 6);
 
   return (
     <div className="space-y-0 pb-0">
@@ -117,52 +119,48 @@ export default async function Home() {
           viewAllLink="/productos"
           viewAllText="Ver catálogo"
         >
-          {(featured.length ? featured : products).map((product) => (
+          {(featured.length ? featured : products).map((product: Product) => (
             <MarketplaceProductCard key={product.id} product={product} />
           ))}
         </DynamicCategorySlider>
       </section>
 
       {/* Stores Section */}
-      <section className="bg-white py-12">
+      <section className="bg-slate-50 py-14">
         <Container>
-          <div className="flex items-center justify-between pb-6">
+          <div className="flex items-center justify-between pb-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Mueblerías aliadas</h2>
-              <p className="text-sm text-gray-500 mt-1">Tiendas locales de Córdoba</p>
+              <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Mueblerías aliadas</h2>
+              <p className="mt-2 text-slate-600">Comercios locales de Córdoba con catálogos digitales</p>
             </div>
-            <Link href="/mueblerias" className="hidden md:inline-flex text-sm font-bold text-gray-900 hover:underline underline-offset-4">
-              Ver todas →
+            <Link 
+              href="/mueblerias" 
+              className="hidden md:inline-flex items-center gap-1 text-sm font-semibold text-slate-900 hover:text-slate-700 transition-colors"
+            >
+              Ver todas
+              <ArrowRight size={16} />
             </Link>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {(stores.slice(0, 4) || []).map((store) => (
-              <Link
-                key={store.id}
-                href={`/mueblerias/${store.slug}`}
-                className="group relative rounded-2xl border border-slate-200 bg-white p-6 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-[#0058a3]/30"
-              >
-                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-[#002f5e] group-hover:bg-[#002f5e] group-hover:text-white transition-colors">
-                  <Store size={28} strokeWidth={1.5} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#0058a3] transition-colors">{store.name}</h3>
-                <p className="text-sm text-slate-500 mt-2 line-clamp-2 max-w-[200px]">{store.description ?? "Mueblería local de Córdoba"}</p>
-                <div className="mt-5 w-full">
-                  <span className="inline-flex w-full items-center justify-center rounded-full bg-slate-50 border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors group-hover:bg-[#0058a3] group-hover:text-white group-hover:border-[#0058a3]">
-                    Ver tienda &rarr;
-                  </span>
-                </div>
-              </Link>
+          
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {(stores.slice(0, 4) || []).map((store: Store) => (
+              <StoreCard key={store.id} store={store} variant="featured" />
             ))}
             {stores.length === 0 && (
-              <div className="col-span-full border-2 border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-                Sin datos de mueblerías aún.
+              <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                <StoreIcon className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 text-sm text-slate-600">Próximamente mueblerías adheridas</p>
               </div>
             )}
           </div>
+          
           <div className="mt-8 text-center md:hidden">
-            <Link href="/mueblerias" className="inline-block bg-primary text-white font-bold py-3 px-8 text-sm transition hover:bg-primary-600">
+            <Link 
+              href="/mueblerias" 
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
               Ver todas las mueblerías
+              <ArrowRight size={16} />
             </Link>
           </div>
         </Container>

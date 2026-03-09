@@ -1,0 +1,23 @@
+﻿-- Add catalog fields to Store
+
+-- Add new columns to Store table
+ALTER TABLE 
+Store ADD COLUMN IF NOT EXISTS city TEXT,
+ADD COLUMN IF NOT EXISTS 
+country TEXT DEFAULT 'Argentina',
+ADD COLUMN IF NOT EXISTS 
+email TEXT,
+ADD COLUMN IF NOT EXISTS 
+isActive BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS 
+phone TEXT,
+ADD COLUMN IF NOT EXISTS 
+province TEXT,
+ADD COLUMN IF NOT EXISTS 
+socialFacebook TEXT,
+ADD COLUMN IF NOT EXISTS 
+socialInstagram TEXT,
+ADD COLUMN IF NOT EXISTS 
+website TEXT,
+ADD COLUMN IF NOT EXISTS 
+whatsappNumber TEXT;

@@ -32,6 +32,7 @@ const breadcrumbMap: Record<string, string> = {
     "/admin/analytics": "Analytics",
     "/admin/stores": "Tiendas",
     "/admin/users": "Usuarios",
+    "/admin/billing": "Facturación",
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

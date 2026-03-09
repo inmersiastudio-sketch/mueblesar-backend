@@ -65,13 +65,13 @@ export function PDPCTA({
           storeSlug: storeSlug ?? "",
           storeWhatsapp: storeWhatsapp ?? null,
         }}
-        className="w-full !bg-[#0058a3] hover:!bg-[#004f93] !rounded-full !h-14 !font-bold shadow-md transition-transform active:scale-[0.98]"
+        className="w-full !bg-[#0058a3] hover:!bg-[#004f93] !rounded-full !h-14 !font-bold shadow-md transition-transform active:scale-[0.98] touch-manipulation"
         disabled={disabled}
       />
 
       <div className="flex flex-col sm:flex-row gap-3">
         {waLink ? (
-          <Button asChild variant="whatsapp" size="lg" className="flex-1 rounded-full h-12 font-bold shadow-sm active:scale-[0.98] flex items-center justify-center gap-2">
+          <Button asChild variant="whatsapp" size="lg" className="flex-1 rounded-full h-14 sm:h-12 font-bold shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 touch-manipulation">
             <a
               href={waLink}
               target="_blank"
@@ -85,7 +85,7 @@ export function PDPCTA({
             </a>
           </Button>
         ) : (
-          <Button variant="secondary" size="lg" disabled className="flex-1 rounded-full h-12 font-bold">
+          <Button variant="secondary" size="lg" disabled className="flex-1 rounded-full h-14 sm:h-12 font-bold touch-manipulation">
             WhatsApp no disponible
           </Button>
         )}
@@ -105,7 +105,7 @@ export function PDPCTA({
             />
           </div>
         ) : (
-          <Button variant="ghost" size="lg" disabled title="Este producto aún no tiene modelo AR disponible" className="flex-1 rounded-full h-12 font-bold bg-slate-100 text-slate-500 border border-slate-200">
+          <Button variant="ghost" size="lg" disabled title="Este producto aún no tiene modelo AR disponible" className="flex-1 rounded-full h-14 sm:h-12 font-bold bg-slate-100 text-slate-500 border border-slate-200 touch-manipulation">
             AR no disponible
           </Button>
         )}

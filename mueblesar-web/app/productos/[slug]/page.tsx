@@ -1,46 +1,61 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Store } from "lucide-react";
-import { Button } from "../../components/ui/Button";
-import { Container } from "../../components/layout/Container";
-import { ImageCarousel } from "../../components/media/ImageCarousel";
-import { ColorImageCarousel } from "../../components/media/ColorImageCarousel";
-import { FavoriteButton } from "../../components/favorites/FavoriteButton";
-import { fetchProductBySlug, fetchProducts } from "../../lib/api";
-import { PDPCTA } from "../../components/products/PDPCTA";
-import { PDPViewTracker } from "../../components/products/PDPViewTracker";
-import { ProductCard } from "../../components/products/ProductCard";
-import { ProductInfoTabs } from "../../components/products/ProductInfoTabs";
+import { Button } from "@/app/components/ui/Button";
+import { Container } from "@/app/components/layout/Container";
+import { ImageCarousel } from "@/app/components/media/ImageCarousel";
+import { ColorImageCarousel } from "@/app/components/media/ColorImageCarousel";
+import { FavoriteButton } from "@/app/components/favorites/FavoriteButton";
+import { fetchProductBySlug, fetchProducts } from "@/app/lib/api";
+import { PDPCTA } from "@/app/components/products/PDPCTA";
+import { PDPViewTracker } from "@/app/components/products/PDPViewTracker";
+import { ProductCard } from "@/app/components/products/ProductCard";
+import { ProductInfoTabs } from "@/app/components/products/ProductInfoTabs";
+import type { Product } from "@/types";
 
-function formatPrice(value: number) {
-  const num = typeof value === "string" ? Number(value) : value;
-  return `$${(num ?? 0).toLocaleString("es-AR")}`;
+function formatPrice(value: number): string {
+  return `$${(value ?? 0).toLocaleString("es-AR")}`;
 }
 
-export default async function ProductDetail({ params }: { params: Promise<{ slug: string }> }) {
+interface ProductDetailPageProps {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function ProductDetail({ params }: ProductDetailPageProps) {
   const { slug } = await params;
   const product = await fetchProductBySlug(slug);
+  
   if (!product) return notFound();
 
-  const images = product.images && product.images.length > 0 ? product.images.map((img) => img.url) : product.imageUrl ? [product.imageUrl] : [];
+  const images =
+    product.images && product.images.length > 0
+      ? product.images.map((img: { url: string }) => img.url)
+      : product.imageUrl
+        ? [product.imageUrl]
+        : [];
+  
   const store = product.store;
   const whatsapp = store?.whatsapp;
 
-  // fetch related products (same category/style or same store)
+  // Fetch related products (same category/style or same store)
   const relatedData = await fetchProducts({
     category: product.category || undefined,
     style: product.style || undefined,
     store: store?.id ? String(store.id) : undefined,
     pageSize: 8,
   });
-  const related = (relatedData.items || []).filter((p) => p.id !== product.id);
+  
+  const related = (relatedData.items || []).filter((p: Product) => p.id !== product.id);
+  
   const message = encodeURIComponent(
     `Hola! Me interesa el ${product.name} que vi en Amobly. Precio: ${formatPrice(product.price)}. Está disponible?`
   );
+  
   const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${message}` : undefined;
-  const arLink = product.arUrl || undefined;
-  const glbLink = product.glbUrl || undefined;
-  const usdzLink = product.usdzUrl || undefined;
+  
+  // Consolidate AR URLs - prefer glbUrl, fallback to arUrl during transition
+  const arModelUrl = product.glbUrl || product.arUrl;
+  const usdzUrl = product.usdzUrl;
 
   return (
     <div className="py-10">
@@ -48,21 +63,28 @@ export default async function ProductDetail({ params }: { params: Promise<{ slug
         <PDPViewTracker
           slug={product.slug}
           store={store?.slug}
-          hasAr={Boolean(product.glbUrl || product.arUrl)}
-          hasUsdz={Boolean(product.usdzUrl || product.arUrl?.toLowerCase().endsWith(".usdz"))}
+          hasAr={Boolean(arModelUrl)}
+          hasUsdz={Boolean(usdzUrl)}
         />
-        {/* breadcrumbs */}
+        
+        {/* Breadcrumbs */}
         <div className="pb-4 text-sm text-primary">
-          <Link href="/">Inicio</Link> /{' '}
+          <Link href="/">Inicio</Link> /{" "}
           <Link href="/productos">Productos</Link>
           {product.category && (
-            <> / <Link href={`/productos?category=${encodeURIComponent(product.category)}`}>{product.category}</Link></>
-          )}{' '}
+            <>
+              {" / "}
+              <Link href={`/productos?category=${encodeURIComponent(product.category)}`}>
+                {product.category}
+              </Link>
+            </>
+          )}{" "}
           / <span className="font-semibold text-slate-900">{product.name}</span>
         </div>
+
         <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
           <ColorImageCarousel
-            images={product.images?.length ? product.images : images.map((u) => ({ url: u }))}
+            images={product.images?.length ? product.images : images.map((u: string) => ({ url: u }))}
             alt={product.name}
             initialColor={product.color ?? undefined}
             arUrl={product.arUrl ?? undefined}
@@ -73,14 +95,20 @@ export default async function ProductDetail({ params }: { params: Promise<{ slug
           <div className="space-y-6 rounded-2xl border border-slate-100 bg-white p-6 md:p-8 shadow-sm">
             <div className="space-y-4">
               <div>
-                <p className="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-1">{product.category}</p>
-                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight">{product.name}</h1>
+                <p className="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                  {product.category}
+                </p>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight">
+                  {product.name}
+                </h1>
               </div>
 
-              <div className="text-4xl font-extrabold text-[#002f5e] tracking-tight">{formatPrice(product.price)}</div>
+              <div className="text-4xl font-extrabold text-[#002f5e] tracking-tight">
+                {formatPrice(product.price)}
+              </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                {/* stock indicator */}
+                {/* Stock indicator */}
                 {product.inStock === false ? (
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-600"></div>
@@ -89,20 +117,39 @@ export default async function ProductDetail({ params }: { params: Promise<{ slug
                 ) : (
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-600"></div>
-                    En stock {product.stockQty && product.stockQty > 0 ? `(${product.stockQty})` : ""}
+                    En stock{" "}
+                    {product.stockQty && product.stockQty > 0 ? `(${product.stockQty})` : ""}
                   </div>
                 )}
 
-                {product.arUrl && (
+                {/* AR Available badge */}
+                {arModelUrl && (
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-[#0058a3]/10 px-3 py-1 text-xs font-bold text-[#0058a3]">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v10l-2 1m-10-11l2-1m-2 1l2 1m-2-1v10l2 1m10-11l-2-1m-6-3l-2 1m2-1l2 1" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v10l-2 1m-10-11l2-1m-2 1l2 1m-2-1v10l2 1m10-11l-2-1m-6-3l-2 1m2-1l2 1"
+                      />
                     </svg>
                     AR disponible
-                    {product.widthCm && <span className="ml-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-[#0058a3] shadow-sm uppercase">Escala real</span>}
+                    {product.widthCm && (
+                      <span className="ml-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-[#0058a3] shadow-sm uppercase">
+                        Escala real
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
+
               <div className="pt-2">
                 <FavoriteButton
                   product={{
@@ -146,9 +193,9 @@ export default async function ProductDetail({ params }: { params: Promise<{ slug
               storeSlug={store?.slug}
               storeWhatsapp={store?.whatsapp}
               waLink={waLink}
-              arLink={arLink}
-              glbLink={glbLink}
-              usdzLink={usdzLink}
+              arLink={arModelUrl ?? undefined}
+              glbLink={product.glbUrl ?? undefined}
+              usdzLink={product.usdzUrl ?? undefined}
               widthCm={product.widthCm ?? undefined}
               depthCm={product.depthCm ?? undefined}
               heightCm={product.heightCm ?? undefined}
@@ -161,23 +208,33 @@ export default async function ProductDetail({ params }: { params: Promise<{ slug
                   <Store className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1">Vendido por Mueblería Local</div>
-                  <div className="text-lg font-bold text-[#002f5e] leading-none mb-1 group-hover:text-[#0058a3] transition-colors">{store.name}</div>
-                  <div className="text-sm text-slate-500 mb-3">{store.address ?? "Dirección no informada"}</div>
-                  <Link href={`/mueblerias/${store.slug}`} className="inline-flex items-center text-sm font-bold text-[#0058a3] hover:text-[#004f93] bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm hover:shadow transition-all group-hover:border-[#0058a3]/20">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                    Vendido por Mueblería Local
+                  </div>
+                  <div className="text-lg font-bold text-[#002f5e] leading-none mb-1 group-hover:text-[#0058a3] transition-colors">
+                    {store.name}
+                  </div>
+                  <div className="text-sm text-slate-500 mb-3">
+                    {store.address ?? "Dirección no informada"}
+                  </div>
+                  <Link
+                    href={`/catalog/${store.slug}`}
+                    className="inline-flex items-center text-sm font-bold text-[#0058a3] hover:text-[#004f93] bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm hover:shadow transition-all group-hover:border-[#0058a3]/20"
+                  >
                     Ver todos sus productos &rarr;
                   </Link>
                 </div>
               </div>
             )}
 
-            {/* related products */}
+            {/* Related products */}
             {related.length > 0 && (
               <div className="mt-10">
                 <h2 className="text-xl font-bold text-slate-900 mb-4">Productos relacionados</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {related.map((p) => {
-                    const image = p.images && p.images.length > 0 ? p.images[0].url : p.imageUrl;
+                  {related.map((p: Product) => {
+                    const image =
+                      p.images && p.images.length > 0 ? p.images[0].url : p.imageUrl;
                     return (
                       <ProductCard
                         key={p.id}

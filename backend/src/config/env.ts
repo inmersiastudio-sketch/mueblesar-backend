@@ -54,7 +54,9 @@ const envSchema = z.object({
   TRIPO_API_KEY: z.string().optional().default(""),
   RESEND_API_KEY: z.string().optional().default(""),
   EMAIL_FROM: z.string().optional().default("Amobly <onboarding@resend.dev>"),
-  REDIS_URL: z.string().optional().default("")
+  REDIS_URL: z.string().optional().default(""),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
+  PHOTOROOM_API_KEY: z.string().optional(),
 });
 
 const parsedEnv = envSchema.parse(process.env);

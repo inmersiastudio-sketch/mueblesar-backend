@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
+import { useToast } from "../../context/ToastContext";
 
 interface AI3DGeneratorProps {
   productId: number;
@@ -32,6 +33,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
   const [uploadingImage, setUploadingImage] = useState(false);
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { success, error: showError } = useToast();
 
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001";
@@ -76,6 +78,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
 
         if (data.status === "SUCCEEDED") {
           clearInterval(interval);
+          success("¡Modelo 3D generado correctamente!");
           if (onSuccess && data.glbUrl) {
             // Check if backend provided the usdz URL within metadata
             const usdzUrl = data.metadata?.usdzUrl;
@@ -84,17 +87,21 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
           }
         } else if (data.status === "FAILED") {
           clearInterval(interval);
-          setError(data.error || "La generación falló");
+          const errorMsg = data.error || "La generación falló";
+          setError(errorMsg);
+          showError(errorMsg);
         }
       } catch (err) {
         console.error("Status check error:", err);
         clearInterval(interval);
         if (isNetworkError(err)) {
           setError(connectionErrorMessage);
+          showError(connectionErrorMessage);
           setJob(null);
         } else {
           const message = err instanceof Error ? err.message : "Error al verificar el estado";
           setError(message);
+          showError(message);
           setJob((prev) => (prev ? { ...prev, status: "FAILED", error: message } : null));
         }
       }
@@ -109,6 +116,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
 
     if (imageUrls.length >= 3) {
       setError("Solo se permiten hasta 3 imágenes.");
+      showError("Solo se permiten hasta 3 imágenes.");
       return;
     }
 
@@ -131,9 +139,12 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
       const data = await res.json();
       if (data.url) {
         setImageUrls(prev => [...prev, data.url]);
+        success("Imagen subida correctamente");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido al subir archivo");
+      const errorMsg = err instanceof Error ? err.message : "Error desconocido al subir archivo";
+      setError(errorMsg);
+      showError(errorMsg);
     } finally {
       setUploadingImage(false);
       // Reset input value to allow selecting the same file again if needed
@@ -145,6 +156,7 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
     const validUrls = imageUrls.filter(url => url.trim() !== "");
     if (validUrls.length === 0) {
       setError("Indica al menos una URL de imagen");
+      showError("Indica al menos una imagen");
       return;
     }
 
@@ -153,7 +165,8 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
     setJob(null);
 
     try {
-      const res = await fetch(`${apiBase}/api/admin/ai-3d/generate`, {
+      // By-pass temporal del procesador de imágenes mediante Query Parameter
+      const res = await fetch(`${apiBase}/api/admin/ai-3d/generate?skipProcessing=true`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -182,11 +195,19 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         status: "IN_PROGRESS",
         progress: 0,
       });
+      if (data.backgroundRemoved) {
+        success("¡Fondos recortados! Generando malla 3D. Esto tomará 1-3 minutos.");
+      } else {
+        success("Generación de modelo 3D iniciada. Esto puede tomar 1-3 minutos.");
+      }
     } catch (err) {
       if (isNetworkError(err)) {
         setError(connectionErrorMessage);
+        showError(connectionErrorMessage);
       } else {
-        setError(err instanceof Error ? err.message : "Error desconocido");
+        const errorMsg = err instanceof Error ? err.message : "Error desconocido";
+        setError(errorMsg);
+        showError(errorMsg);
       }
     } finally {
       setLoading(false);
@@ -371,9 +392,9 @@ export function AI3DGenerator({ productId, productName, currentImageUrl, current
         <Button
           onClick={handleGenerate}
           disabled={loading || imageUrls.every(url => url.trim() === "") || job?.status === "IN_PROGRESS" || job?.status === "PENDING"}
-          className="flex-1"
+          className="flex-1 transition-all duration-300"
         >
-          {loading ? "Starting..." : job?.status === "IN_PROGRESS" || job?.status === "PENDING" ? "Generating..." : "Generate 3D Model (Meshy)"}
+          {loading ? "✨ Analizando y recortando fondos..." : job?.status === "IN_PROGRESS" || job?.status === "PENDING" ? "🪄 Generando malla 3D..." : "🪄 Generar Modelo 3D (IA)"}
         </Button>
 
         {job && job.status === "SUCCEEDED" && (

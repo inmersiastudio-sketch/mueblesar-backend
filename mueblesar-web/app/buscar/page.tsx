@@ -8,6 +8,7 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ProductCard } from "../components/products/ProductCard";
 import { fetchProducts, fetchStores } from "../lib/api";
+import type { Product, Store } from "@/types";
 import { VisualCategoryFilter } from "../components/filters/VisualCategoryFilter";
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string }> }) {
@@ -75,7 +76,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   </div>
                 )}
 
-                {products.map((product) => (
+                {products.map((product: Product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
@@ -97,10 +98,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   </div>
                 )}
 
-                {stores.map((store) => (
+                {stores.map((store: Store) => (
                   <Link
                     key={store.id}
-                    href={`/mueblerias/${store.slug}`}
+                    href={`/catalog/${store.slug}`}
                     className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                   >
                     <div className="flex items-center gap-3">

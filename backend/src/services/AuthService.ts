@@ -17,10 +17,9 @@ import {
 import type {
   AuthUser,
   PublicUser,
-  StoreRegistrationData,
   RegistrationResult,
 } from '../types/auth.js';
-import type { LoginInput, RegisterInput, ResetPasswordInput } from '../schemas/auth.js';
+import type { LoginInput, RegisterInput, RegisterStoreInput, ResetPasswordInput } from '../schemas/auth.js';
 
 /**
  * AuthService - Business Logic Layer for Authentication
@@ -127,7 +126,7 @@ export class AuthService {
   /**
    * Register a new store with owner
    */
-  async registerStore(data: StoreRegistrationData): Promise<RegistrationResult> {
+  async registerStore(data: RegisterStoreInput): Promise<RegistrationResult> {
     // Check if email already exists
     const existing = await prisma.user.findUnique({
       where: { email: data.email },

@@ -17,6 +17,7 @@ import {
   slugify,
 } from "../../lib/admin.types";
 
+import { useToast } from "../../context/ToastContext";
 import {
   Search,
   Plus,
@@ -36,6 +37,11 @@ import {
   Check,
   AlertTriangle,
   Image as ImageIcon,
+  Link as LinkIcon,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  Loader,
 } from "lucide-react";
 
 // ─── Tabs ───
@@ -48,6 +54,7 @@ const tabs: { id: ViewTab; label: string; icon: React.ElementType }[] = [
 
 export default function InventoryPage() {
   const { user, apiBase } = useAdmin();
+  const { success: showSuccess, error: showError } = useToast();
 
   // Data
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,6 +91,10 @@ export default function InventoryPage() {
   // Product log modal
   const [logProductId, setLogProductId] = useState<number | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
+
+  // Async action states
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  const [copyingId, setCopyingId] = useState<number | null>(null);
 
   // CSV
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,8 +182,30 @@ export default function InventoryPage() {
 
   const deleteProduct = async (id: number) => {
     if (!confirm("¿Borrar producto?")) return;
-    await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
-    await loadProducts();
+    setDeletingIds((prev) => new Set(prev).add(id));
+    try {
+      await fetch(`${apiBase}/api/admin/products/${id}`, { method: "DELETE", credentials: "include" });
+      await loadProducts();
+      showSuccess("Producto eliminado correctamente");
+    } catch (err) {
+      showError("Error al eliminar producto");
+    } finally {
+      setDeletingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
+  const copyARLink = async (product: Product) => {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const arUrl = `${siteUrl}/ar/${product.id}`;
+    setCopyingId(product.id);
+    try {
+      await navigator.clipboard.writeText(arUrl);
+      showSuccess("Link AR copiado al portapapeles");
+    } catch {
+      showError("Error al copiar link");
+    } finally {
+      setCopyingId(null);
+    }
   };
 
   const validate = async (product: Product) => {
@@ -251,7 +284,11 @@ export default function InventoryPage() {
       const url = isEdit ? `${apiBase}/api/admin/products/${form.id}?tolerance=${tol}` : `${apiBase}/api/admin/products?tolerance=${tol}`;
       const res = await fetch(url, { method: isEdit ? "PUT" : "POST", headers: { "content-type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError((data as any)?.error || `Error ${res.status}`); return; }
+      if (!res.ok) {
+        const errorMsg = data.details ? `Validation Error: ${JSON.stringify(data.details)}` : data.error || data.message || `Error ${res.status}`;
+        setError(errorMsg);
+        return;
+      }
       await loadProducts();
       closeDrawer();
     } catch (err) { setError((err as Error).message); }
@@ -370,15 +407,15 @@ export default function InventoryPage() {
           <p className="text-sm text-slate-500">{products.length} productos · Página {page}/{totalPages}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={exportCsv} disabled={!products.length} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50">
-            <Download size={14} /> CSV
+          <button onClick={exportCsv} disabled={!products.length} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50">
+            <Download size={16} /> Exportar CSV
           </button>
-          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-            <Upload size={14} /> Importar
+          <label className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
+            <Upload size={16} /> Importar CSV
             <input type="file" accept="text/csv" className="hidden" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
           </label>
-          <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors shadow-sm">
-            <Plus size={14} /> Nuevo
+          <button onClick={openCreate} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0058a3] to-[#0070d6] text-white text-sm font-bold hover:from-[#004f93] hover:to-[#0058a3] transition-all shadow-lg shadow-[#0058a3]/25 active:scale-[0.98]">
+            <Plus size={18} /> Nuevo Producto
           </button>
         </div>
       </div>
@@ -467,7 +504,7 @@ export default function InventoryPage() {
         ) : (
           <>
             {/* Table header */}
-            <div className="hidden sm:grid grid-cols-[44px_1fr_120px_120px_100px_100px] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider items-center">
+            <div className="hidden sm:grid grid-cols-[44px_1fr_100px_100px_80px_80px_80px_100px] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider items-center">
               <div className="text-center">
                 <input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 accent-[#0058a3]"
                   checked={pagedProducts.length > 0 && pagedProducts.every((p) => selectedIds.has(p.id))}
@@ -485,8 +522,20 @@ export default function InventoryPage() {
                   {user?.role === "ADMIN" && <span>Tienda</span>}
                 </>
               )}
-              {activeTab === "ar" && (<><span className="text-center">Estado AR</span><span className="text-center">Medidas</span></>)}
-              {activeTab === "stock" && (<><span className="text-center">En Stock</span><span className="text-center">Cantidad</span></>)}
+              {activeTab === "ar" && (
+                <>
+                  <span className="text-center">Estado AR</span>
+                  <span className="text-center">Medidas</span>
+                  <span className="text-center">Link</span>
+                </>
+              )}
+              {activeTab === "stock" && (
+                <>
+                  <span className="text-center">Stock</span>
+                  <span className="text-center">Cantidad</span>
+                  <span className="text-center">Estado</span>
+                </>
+              )}
               <span className="text-right">Acciones</span>
             </div>
 
@@ -496,7 +545,7 @@ export default function InventoryPage() {
               const hasDim = p.widthCm || p.depthCm || p.heightCm;
 
               return (
-                <div key={p.id} className={`grid grid-cols-1 sm:grid-cols-[44px_1fr_120px_120px_100px_100px] gap-2 px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors items-center ${selectedIds.has(p.id) ? "bg-blue-50/50" : ""}`}>
+                <div key={p.id} className={`grid grid-cols-1 sm:grid-cols-[44px_1fr_100px_100px_80px_80px_80px_100px] gap-2 px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors items-center ${selectedIds.has(p.id) ? "bg-blue-50/50" : ""}`}>
                   {/* Checkbox */}
                   <div className="text-center hidden sm:block">
                     <input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 accent-[#0058a3]"
@@ -535,13 +584,32 @@ export default function InventoryPage() {
                     <>
                       <div className="text-center hidden sm:block">
                         {(p.glbUrl || p.arUrl) ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><Check size={10} /> Ready</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 size={12} className="text-emerald-500" />
+                            {p.glbUrl && p.usdzUrl ? "GLB+USDZ" : p.glbUrl ? "GLB" : "USDZ"}
+                          </span>
                         ) : (
-                          <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">No AR</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                            <XCircle size={12} className="text-red-500" /> Sin AR
+                          </span>
                         )}
                       </div>
                       <div className="text-center hidden sm:block text-xs text-slate-600">
                         {hasDim ? `${p.widthCm ?? "?"}×${p.depthCm ?? "?"}×${p.heightCm ?? "?"}` : <span className="text-amber-600 font-semibold text-[10px]"><AlertTriangle size={10} className="inline" /> Sin medidas</span>}
+                      </div>
+                      <div className="text-center hidden sm:block">
+                        {(p.glbUrl || p.arUrl) ? (
+                          <button
+                            onClick={() => copyARLink(p)}
+                            disabled={copyingId === p.id}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-[#0058a3]/10 text-slate-500 hover:text-[#0058a3] transition-colors disabled:opacity-50"
+                            title="Copiar link AR"
+                          >
+                            {copyingId === p.id ? <Loader size={14} className="animate-spin" /> : <Copy size={14} />}
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </div>
                     </>
                   )}
@@ -550,8 +618,17 @@ export default function InventoryPage() {
                   {activeTab === "stock" && (
                     <>
                       <div className="text-center hidden sm:block">
-                        <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-emerald-500" checked={p.inStock ?? false}
-                          onChange={(e) => updateProductField(p.id, { inStock: e.target.checked })} />
+                        {p.inStock ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 size={12} className="text-emerald-500" />
+                            En Stock
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                            <XCircle size={12} className="text-red-500" />
+                            Agotado
+                          </span>
+                        )}
                       </div>
                       <div className="text-center hidden sm:block">
                         <div className="flex items-center justify-center gap-1.5">
@@ -562,6 +639,11 @@ export default function InventoryPage() {
                             className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors">+</button>
                           {(p.stockQty ?? 0) < 5 && <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">Bajo</span>}
                         </div>
+                      </div>
+                      <div className="text-center hidden sm:block">
+                        <span className={`text-xs font-semibold ${(p.stockQty ?? 0) > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                          {(p.stockQty ?? 0) > 0 ? "Disponible" : "Sin inventario"}
+                        </span>
                       </div>
                     </>
                   )}
@@ -583,7 +665,14 @@ export default function InventoryPage() {
                     )}
                     <button onClick={() => openEdit(p)} title="Editar" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-[#0058a3]/10 text-slate-500 hover:text-[#0058a3] flex items-center justify-center transition-colors"><Pencil size={14} /></button>
                     <button onClick={() => { setLogProductId(p.id); setShowLogModal(true); }} title="Historial" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"><History size={14} /></button>
-                    <button onClick={() => deleteProduct(p.id)} title="Borrar" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"><Trash2 size={14} /></button>
+                    <button
+                      onClick={() => deleteProduct(p.id)}
+                      disabled={deletingIds.has(p.id)}
+                      title="Borrar"
+                      className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors disabled:opacity-50"
+                    >
+                      {deletingIds.has(p.id) ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
                   </div>
 
                   {/* Validation result (AR tab only) */}

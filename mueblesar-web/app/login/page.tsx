@@ -4,11 +4,17 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { useToast } from "../context/ToastContext";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL environment variable is required");
+}
 
 export default function LoginPage() {
     const router = useRouter();
+    const { success, error: showError } = useToast();
     const [loading, setLoading] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -52,16 +58,21 @@ export default function LoginPage() {
                 if (data.code === "EMAIL_NOT_VERIFIED") {
                     setShowVerificationMsg(true);
                     setError(data.message || "Verificá tu email antes de iniciar sesión.");
+                    showError(data.message || "Verificá tu email antes de iniciar sesión.");
                 } else {
                     setError(data.error || "Credenciales incorrectas");
+                    showError(data.error || "Credenciales incorrectas");
                 }
                 setLoading(false);
                 return;
             }
 
+            success("¡Bienvenido! Iniciando sesión...");
+
             router.push("/admin");
         } catch {
             setError("Error de conexión. Intentá nuevamente.");
+            showError("Error de conexión. Intentá nuevamente.");
             setLoading(false);
         }
     };
@@ -74,9 +85,11 @@ export default function LoginPage() {
                 body: JSON.stringify({ email }),
             });
             setError("✅ Email de verificación reenviado. Revisá tu bandeja.");
+            success("Email de verificación reenviado. Revisá tu bandeja.");
             setShowVerificationMsg(false);
         } catch {
             setError("No se pudo reenviar. Intentá más tarde.");
+            showError("No se pudo reenviar el email. Intentá más tarde.");
         }
     };
 
@@ -176,10 +189,10 @@ export default function LoginPage() {
                     <form onSubmit={handleSubmit} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 space-y-5 shadow-2xl">
                         {error && (
                             <div className={`rounded-xl px-4 py-3 text-sm font-medium ${showVerificationMsg
-                                    ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-300"
-                                    : error.startsWith("✅")
-                                        ? "bg-green-500/10 border border-green-500/20 text-green-300"
-                                        : "bg-red-500/10 border border-red-500/20 text-red-300"
+                                ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-300"
+                                : error.startsWith("✅")
+                                    ? "bg-green-500/10 border border-green-500/20 text-green-300"
+                                    : "bg-red-500/10 border border-red-500/20 text-red-300"
                                 }`}>
                                 {error}
                                 {showVerificationMsg && (

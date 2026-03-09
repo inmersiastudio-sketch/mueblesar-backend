@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, ReactElement, ReactNode, cloneElement } from "react";
 
-type Variant = "primary" | "secondary" | "whatsapp" | "ghost";
+type Variant = "primary" | "secondary" | "whatsapp" | "ghost" | "outline";
 type Size = "md" | "lg";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -21,6 +21,7 @@ const variants: Record<Variant, string> = {
   whatsapp:
     "bg-whatsapp text-white hover:bg-whatsapp-600 active:bg-whatsapp-700 focus-visible:outline-whatsapp shadow-sm",
   ghost: "text-slate-700 hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-slate-400",
+  outline: "border-2 border-slate-300 text-slate-700 hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-slate-400",
 };
 
 const sizes: Record<Size, string> = {

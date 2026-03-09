@@ -14,11 +14,12 @@ export default function AnalyticsPage() {
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#0058a3]/10 to-violet-500/10 flex items-center justify-center mb-6">
                     <BarChart3 size={36} className="text-[#0058a3]" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 mb-2">Próximamente</h2>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">Sección en Desarrollo</h2>
                 <p className="text-sm text-slate-500 max-w-md mb-8">
-                    Acá vas a ver reportes detallados de conversión AR, comparativas entre productos, y métricas que te van a ayudar a vender más.
+                    Estamos trabajando en nuevos reportes de analytics. Muy pronto podrás ver métricas detalladas de conversión AR y rendimiento de tus productos.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg">
+                {/* Preview cards - disabled look */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg opacity-50 pointer-events-none">
                     <div className="rounded-xl border border-slate-200 bg-white p-4 text-center">
                         <Eye size={20} className="text-amber-500 mx-auto mb-2" />
                         <p className="text-xs font-bold text-slate-700">Conversión AR</p>

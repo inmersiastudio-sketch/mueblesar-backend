@@ -7,13 +7,13 @@ export type FavoriteItem = {
   slug: string;
   name: string;
   price: number;
-  imageUrl?: string;
-  category?: string;
-  room?: string;
-  style?: string;
-  description?: string;
-  storeName?: string;
-  storeSlug?: string;
+  imageUrl?: string | null;
+  category?: string | null;
+  room?: string | null;
+  style?: string | null;
+  description?: string | null;
+  storeName?: string | null;
+  storeSlug?: string | null;
 };
 
 const STORAGE_KEY = "amobly:favorites:v1";

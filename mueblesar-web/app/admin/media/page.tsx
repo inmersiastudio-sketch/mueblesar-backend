@@ -1,23 +1,24 @@
 "use client";
 
-import { Container } from "../../components/layout/Container";
+import { Box } from "lucide-react";
 
 export default function MediaPage() {
     return (
-        <div className="py-10">
-            <Container>
-                <div className="mb-6 flex flex-col gap-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900">Galería 3D</h1>
-                            <p className="text-sm text-slate-600">Modelos 3D generados y subidos.</p>
-                        </div>
-                    </div>
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-extrabold text-slate-900">Media</h1>
+                <p className="text-sm text-slate-500 mt-0.5">Gestión de archivos multimedia</p>
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#0058a3]/10 to-violet-500/10 flex items-center justify-center mb-6">
+                    <Box size={36} className="text-[#0058a3]" />
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <p className="text-sm text-slate-500">Próximamente: Visor centralizado de modelos GLB/USDZ.</p>
-                </div>
-            </Container>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">Centro de Medios</h2>
+                <p className="text-sm text-slate-500 max-w-md">
+                    Sección en desarrollo. Podrás gestionar todos tus modelos 3D (GLB/USDZ) e imágenes desde un único lugar.
+                </p>
+            </div>
         </div>
     );
 }

@@ -9,6 +9,7 @@ import {
   resetPasswordSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  type RegisterStoreInput,
 } from '../schemas/auth.js';
 import { Errors } from '../errors/AppError.js';
 import { env } from '../config/env.js';

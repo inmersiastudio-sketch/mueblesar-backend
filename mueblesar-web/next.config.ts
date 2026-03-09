@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
         hostname: "loremflickr.com", // Used for faker/seed data if any
         port: "",
         pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        port: "",
+        pathname: "/**",
       }
     ],
   },

@@ -9,6 +9,7 @@ import { PriceRange } from "../components/filters/PriceRange";
 import { MarketplaceProductCard } from "../components/products/MarketplaceProductCard";
 import { AutoScrollToResults } from "../components/layout/AutoScrollToResults";
 import { fetchProducts } from "../lib/api";
+import type { Product } from "@/types";
 import { PLPAnalytics } from "../components/analytics/PLPAnalytics";
 import { ChevronDown } from "lucide-react";
 
@@ -240,7 +241,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                   Sin resultados. Ajustá filtros o agrega más productos.
                 </div>
               )}
-              {items.map((product) => (
+              {items.map((product: Product) => (
                 <MarketplaceProductCard key={product.id} product={product} />
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { ErrorRequestHandler, Response } from 'express';
+import { ErrorRequestHandler, Response as ExpressResponse, RequestHandler, Request, Response, NextFunction } from 'express';
 import { AppError, ErrorCode } from '../errors/AppError.js';
 import { env } from '../config/env.js';
 
@@ -14,7 +14,7 @@ interface ErrorResponse {
   stack?: string;
 }
 
-function sendErrorResponse(res: Response, statusCode: number, response: ErrorResponse): void {
+function sendErrorResponse(res: ExpressResponse, statusCode: number, response: ErrorResponse): void {
   res.status(statusCode).json(response);
 }
 
@@ -105,7 +105,6 @@ export const errorHandler: ErrorRequestHandler = (
  * Eliminates need for try/catch in route handlers
  * Usage: router.get('/', asyncHandler(async (req, res) => { ... }))
  */
-import { RequestHandler, Request, Response, NextFunction } from 'express';
 
 type AsyncRequestHandler = (
   req: Request,

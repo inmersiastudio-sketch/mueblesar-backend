@@ -26,6 +26,10 @@ export type Product = {
   inStock: boolean;
   featured: boolean;
   imageUrl: string;
+  // Consolidated AR URLs - use glbUrl (Android/Web) and usdzUrl (iOS)
+  glbUrl?: string;
+  usdzUrl?: string;
+  // @deprecated - kept for backward compatibility during migration
   arUrl?: string;
 };
 
@@ -69,7 +73,7 @@ export const products: Product[] = [
     inStock: true,
     featured: true,
     imageUrl: "https://placehold.co/800x600?text=Sofa+Gris",
-    arUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
+    glbUrl: "https://modelviewer.dev/shared-assets/models/Astronaut.glb",
   },
   {
     id: 102,

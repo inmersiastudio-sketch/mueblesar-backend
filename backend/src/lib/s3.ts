@@ -38,7 +38,6 @@ export async function uploadGLBToS3(
     Key: finalKey,
     Body: buffer,
     ContentType: contentType,
-    ACL: "public-read",
   });
 
   await client.send(command);
@@ -72,7 +71,6 @@ export async function uploadUSDZToS3(
     Key: finalKey,
     Body: buffer,
     ContentType: contentType,
-    ACL: "public-read",
   });
 
   await client.send(command);

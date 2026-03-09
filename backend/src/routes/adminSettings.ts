@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
 });
 
 const updateSchema = z.object({
-  key: z.enum(["tolerance"]),
+  key: z.enum(["tolerance", "storeSlug", "storeWhatsapp"]),
   value: z.string(),
 }).superRefine((data, ctx) => {
   if (data.key === "tolerance") {
@@ -30,6 +30,30 @@ const updateSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "tolerance must be a number between 0 and 1",
+      });
+    }
+  }
+  if (data.key === "storeSlug") {
+    // Slug should only contain lowercase letters, numbers, and hyphens
+    if (!/^[a-z0-9-]*$/.test(data.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "storeSlug must only contain lowercase letters, numbers, and hyphens",
+      });
+    }
+    if (data.value.length > 50) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "storeSlug must be 50 characters or less",
+      });
+    }
+  }
+  if (data.key === "storeWhatsapp") {
+    // WhatsApp should be numeric (with country code)
+    if (!/^\d*$/.test(data.value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "storeWhatsapp must only contain numbers",
       });
     }
   }

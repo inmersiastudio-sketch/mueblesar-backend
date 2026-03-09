@@ -3,23 +3,16 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Cuboid, ImageIcon } from "lucide-react";
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      "model-viewer": any;
-    }
-  }
-}
-
 type Props = {
   images: string[];
   alt: string;
   arUrl?: string;
   glbUrl?: string;
   usdzUrl?: string;
+  hideThumbnails?: boolean;
 };
 
-export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl: propUsdzUrl }: Props) {
+export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl: propUsdzUrl, hideThumbnails = false }: Props) {
   const safeImages = useMemo(() => (images.length > 0 ? images : []), [images]);
   const [index, setIndex] = useState(0);
   const hasAr = !!(propGlbUrl || propUsdzUrl || arUrl);
@@ -152,7 +145,7 @@ export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl:
         )}
       </div>
 
-      {safeImages.length > 1 && (
+      {!hideThumbnails && safeImages.length > 1 && (
         <div className="grid grid-cols-4 gap-3">
           {safeImages.slice(0, 8).map((img, i) => (
             <button

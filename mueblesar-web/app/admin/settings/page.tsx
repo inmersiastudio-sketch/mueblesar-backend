@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAdmin } from "../layout";
-import { Settings, Save, Loader2, Store, Sliders, Globe } from "lucide-react";
+import { Settings, Save, Loader2, Store, Sliders, Globe, Link as LinkIcon, Copy, Check } from "lucide-react";
 
 export default function SettingsPage() {
     const { user, apiBase } = useAdmin();
@@ -96,25 +96,101 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    {/* Store Profile — placeholder for Phase 3 */}
+                    {/* Catálogo Compartible */}
                     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                                <Store size={18} className="text-emerald-600" />
+                                <LinkIcon size={18} className="text-emerald-600" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-bold text-slate-900">Perfil de tu tienda</h3>
-                                <p className="text-xs text-slate-500">Nombre, logo, WhatsApp y dirección</p>
+                                <h3 className="text-sm font-bold text-slate-900">Catálogo Compartible</h3>
+                                <p className="text-xs text-slate-500">Configura tu catálogo público personalizado</p>
                             </div>
                         </div>
-                        <div className="px-6 py-8 flex flex-col items-center text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-                                <Store size={24} className="text-slate-400" />
+                        <div className="px-6 py-4 space-y-4">
+                            {/* Custom Slug */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                    URL personalizada
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-500 bg-slate-50 px-3 py-2.5 rounded-l-xl border border-r-0 border-slate-200">
+                                        amobly.com/catalog/
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={settings.storeSlug || ""}
+                                        onChange={(e) => setSettings((s) => ({ ...s, storeSlug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                                        placeholder="tu-tienda"
+                                        className="flex-1 px-4 py-2.5 rounded-r-xl border border-slate-200 text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Solo letras minúsculas, números y guiones
+                                </p>
                             </div>
-                            <p className="text-sm font-bold text-slate-900 mb-1">Próximamente</p>
-                            <p className="text-xs text-slate-500 max-w-xs">
-                                Vas a poder personalizar el perfil público de tu mueblería: logo, colores, descripción y datos de contacto.
-                            </p>
+
+                            {/* WhatsApp */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                    WhatsApp
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={settings.storeWhatsapp || ""}
+                                    onChange={(e) => setSettings((s) => ({ ...s, storeWhatsapp: e.target.value }))}
+                                    placeholder="5491123456789"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/10 transition-all"
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Número con código de país, sin espacios ni símbolos
+                                </p>
+                            </div>
+
+                            {/* Preview Link */}
+                            {(settings.storeSlug || settings.storeWhatsapp) && (
+                                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                                    <p className="text-xs font-bold text-emerald-800 mb-2">Vista previa de tu catálogo:</p>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={`${typeof window !== "undefined" ? window.location.origin : ""}/catalog/${settings.storeSlug || "tu-tienda"}`}
+                                            className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 bg-white text-sm text-emerald-900"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(`${typeof window !== "undefined" ? window.location.origin : ""}/catalog/${settings.storeSlug || "tu-tienda"}`);
+                                            }}
+                                            className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                                            title="Copiar enlace"
+                                        >
+                                            <Copy size={16} />
+                                        </button>
+                                        <a
+                                            href={`/catalog/${settings.storeSlug || "tu-tienda"}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                                            title="Ver catálogo"
+                                        >
+                                            <Check size={16} />
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => {
+                                    saveSetting("storeSlug", settings.storeSlug || "");
+                                    saveSetting("storeWhatsapp", settings.storeWhatsapp || "");
+                                }}
+                                disabled={saving === "storeSlug" || saving === "storeWhatsapp"}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0058a3] text-white text-sm font-bold hover:bg-[#004f93] transition-colors disabled:opacity-50"
+                            >
+                                {saving === "storeSlug" || saving === "storeWhatsapp" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                Guardar
+                            </button>
                         </div>
                     </div>
 
@@ -130,10 +206,10 @@ export default function SettingsPage() {
                             </div>
                         </div>
                         <div className="px-6 py-8 flex flex-col items-center text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3 opacity-50">
                                 <Globe size={24} className="text-slate-400" />
                             </div>
-                            <p className="text-sm font-bold text-slate-900 mb-1">Próximamente</p>
+                            <p className="text-sm font-bold text-slate-900 mb-1">En Desarrollo</p>
                             <p className="text-xs text-slate-500 max-w-xs">
                                 Conectá tu mueblería con WhatsApp Business, Google Analytics y generá API Keys propias.
                             </p>

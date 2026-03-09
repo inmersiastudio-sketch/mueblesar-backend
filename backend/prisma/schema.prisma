@@ -29,23 +29,43 @@ enum ArSource {
 }
 
 model Store {
-  id               Int              @id @default(autoincrement())
+  id               Int               @id @default(autoincrement())
   name             String
-  slug             String           @unique
+  slug             String            @unique
   logoUrl          String?
   description      String?
   whatsapp         String?
+  whatsappNumber   String? // N�mero espec�fico para WhatsApp Business
+  phone            String? // Tel�fono fijo de contacto
+  email            String? // Email de contacto p�blico
+  website          String? // Sitio web de la tienda
   address          String?
-  ai3dCredits      Int              @default(3) // Free credits for new stores
-  ai3dUsed         Int              @default(0) // Total models generated
-  maxProducts      Int              @default(20) // Product limit per plan
-  subscriptionTier String?          @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
-  createdAt        DateTime         @default(now())
+  city             String? // Ciudad
+  province         String? // Provincia/Estado
+  country          String?           @default("Argentina")
+  socialInstagram  String?
+  socialFacebook   String?
+  isActive         Boolean           @default(true) // Tienda activa/visible
+  ai3dCredits      Int               @default(3)
+  ai3dUsed         Int               @default(0)
+  maxProducts      Int               @default(20)
+  subscriptionTier String?           @default("FREE")
+  mpPreapprovalId  String?           @unique
+  paymentStatus    String            @default("INACTIVE")
+  aiCreditsLimit   Int               @default(5)
+  aiCreditsUsed    Int               @default(0)
+  planType         String?           @default("FREE")
+  mpPayerId        String?
+  lastPaymentDate  DateTime?
+  nextPaymentDate  DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   products         Product[]
   users            User[]
   orders           Order[]
   arViews          ArView[]
   creditPurchases  CreditPurchase[]
+  subscriptionLogs SubscriptionLog[]
 }
 
 model CreditPurchase {
@@ -81,8 +101,8 @@ model Product {
   material    String?
   color       String?
   arUrl       String?
-  glbUrl      String?   // GLB model URL for Android/desktop AR
-  usdzUrl     String?   // USDZ model URL for iOS AR Quick Look
+  glbUrl      String? // GLB model URL for Android/desktop AR
+  usdzUrl     String? // USDZ model URL for iOS AR Quick Look
   imageUrl    String?
   inStock     Boolean        @default(true)
   stockQty    Int            @default(0)
@@ -116,7 +136,7 @@ model Order {
   customer      String?
   customerPhone String?
   customerEmail String?
-  notes         String?     // Internal notes for store staff
+  notes         String? // Internal notes for store staff
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
@@ -152,18 +172,18 @@ model ArView {
 }
 
 model User {
-  id               Int                      @id @default(autoincrement())
-  email            String                   @unique
-  name             String?
-  passwordHash     String
-  role             Role                     @default(STORE)
-  emailVerified    Boolean                  @default(false)
-  storeId          Int?
-  store            Store?                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
-  orders           Order[]
-  resetTokens      PasswordResetToken[]
+  id                 Int                      @id @default(autoincrement())
+  email              String                   @unique
+  name               String?
+  passwordHash       String
+  role               Role                     @default(STORE)
+  emailVerified      Boolean                  @default(false)
+  storeId            Int?
+  store              Store?                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  orders             Order[]
+  resetTokens        PasswordResetToken[]
   verificationTokens EmailVerificationToken[]
 }
 
@@ -203,7 +223,7 @@ model AI3DJob {
   id        Int           @id @default(autoincrement())
   productId Int
   imageUrl  String
-  imageUrls Json?         // Array of images for multi-view generation
+  imageUrls Json? // Array of images for multi-view generation
   provider  String        @default("meshy") // meshy, luma, tripo, etc
   taskId    String? // ID del task en el proveedor
   status    AI3DJobStatus @default(PENDING)
@@ -235,4 +255,24 @@ model ProductLog {
 
   @@index([productId])
   @@index([userId])
+}
+
+// Log de eventos de suscripción MercadoPago
+model SubscriptionLog {
+  id              Int      @id @default(autoincrement())
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId         Int
+  eventType       String // PAYMENT_APPROVED, PAYMENT_REJECTED, SUBSCRIPTION_CANCELLED, etc.
+  mpPaymentId     String? // ID del pago en MP
+  mpPreapprovalId String? // ID de la suscripción en MP
+  amount          Decimal? @db.Decimal(10, 2)
+  currency        String?
+  status          String? // approved, rejected, pending, etc.
+  metadata        Json? // Datos completos del webhook
+  processedAt     DateTime @default(now())
+
+  @@index([storeId])
+  @@index([mpPaymentId])
+  @@index([mpPreapprovalId])
+  @@index([eventType])
 }

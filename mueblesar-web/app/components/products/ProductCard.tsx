@@ -10,21 +10,21 @@ export type ProductCardData = {
   slug: string;
   name: string;
   price: number;
-  description?: string;
-  category?: string;
-  room?: string;
-  style?: string;
-  imageUrl?: string;
-  arUrl?: string;
-  images?: { url: string; type?: string }[];
-  store?: { name?: string; slug?: string };
-  color?: string;
+  description?: string | null;
+  category?: string | null;
+  room?: string | null;
+  style?: string | null;
+  imageUrl?: string | null;
+  arUrl?: string | null;
+  images?: { url: string; type?: string | null }[];
+  store?: { name?: string | null; slug?: string | null };
+  color?: string | null;
   inStock?: boolean;
-  stockQty?: number;
+  stockQty?: number | null;
   featured?: boolean;
-  widthCm?: number;
-  heightCm?: number;
-  depthCm?: number;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  depthCm?: number | null;
 };
 
 type Props = {

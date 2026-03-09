@@ -17,6 +17,7 @@ import {
     ChevronLeft,
     Menu,
     X,
+    CreditCard,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -44,6 +45,7 @@ const mainLinks: NavItem[] = [
     { name: "Pedidos", href: "/admin/orders", icon: ShoppingCart },
     { name: "Inventario", href: "/admin/inventory", icon: Package },
     { name: "Modelos AR", href: "/admin/media", icon: Box },
+    { name: "Facturación", href: "/admin/billing", icon: CreditCard },
 ];
 
 const bottomLinks: NavItem[] = [
@@ -69,8 +71,8 @@ export function Sidebar({ storeName, userRole = "STORE", onLogout }: SidebarProp
                 onClick={() => setMobileOpen(false)}
                 title={collapsed ? link.name : undefined}
                 className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${active
-                        ? "bg-[#0058a3] text-white shadow-md shadow-[#0058a3]/20"
-                        : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                    ? "bg-[#0058a3] text-white shadow-md shadow-[#0058a3]/20"
+                    : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
                     } ${collapsed ? "justify-center" : ""}`}
             >
                 <Icon

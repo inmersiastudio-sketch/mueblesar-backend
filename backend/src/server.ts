@@ -18,6 +18,9 @@ import uploadRouter from "./routes/upload.js";
 import ai3dRouter from "./routes/ai3d.js";
 import proxyRouter from "./routes/proxy.js";
 import arRedirectRouter from "./routes/arRedirect.js";
+import subscriptionRouter from "./routes/subscription.js";
+import webhooksRouter from "./routes/webhooks.js";
+import catalogRouter from "./routes/catalog.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { redis } from "./lib/redis.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -82,6 +85,9 @@ export function createServer() {
   app.use("/api/short/ar", arRedirectRouter);
   app.use("/api/events", eventsLimiter, eventsRouter);
   app.use("/api/ar", arRouter);
+  app.use("/api/subscriptions", subscriptionRouter);
+  app.use("/api/webhooks", webhooksRouter);
+  app.use("/api/catalog", catalogRouter); // Rutas públicas de catálogo
   app.use(openapiRouter);
 
   // ── 404 Handler ─────────────────────────────────────────────
