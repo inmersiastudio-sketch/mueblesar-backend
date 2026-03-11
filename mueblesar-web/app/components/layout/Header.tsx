@@ -29,8 +29,8 @@ export function Header() {
               <Image
                 src="/icono_azul.png"
                 alt="Amobly"
-                width={48}
-                height={48}
+                width={150}
+                height={40}
                 className="h-10 w-auto"
                 priority
               />
