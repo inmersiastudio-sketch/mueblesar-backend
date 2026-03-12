@@ -3,165 +3,303 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
 import Link from "next/link";
-import { Button } from "./components/ui/Button";
-import { Container } from "./components/layout/Container";
 import { ProductCard } from "./components/products/ProductCard";
-import { MarketplaceProductCard } from "./components/products/MarketplaceProductCard";
-import { DynamicCategorySlider } from "./components/ui/DynamicCategorySlider";
-import { fetchProducts, fetchStores } from "./lib/api";
-import { Store as StoreIcon, ArrowRight } from "lucide-react";
-import { StoreCard } from "./components/store/StoreCard";
-import type { Product, Store } from "@/types";
+import { HeroImage } from "./components/HeroImage";
+import { Container } from "./components/layout/Container";
+import { fetchProducts } from "./lib/api";
+import { ArrowRight, Truck, Shield, Clock } from "lucide-react";
+import type { Product } from "@/types";
 
-const categories = [
-  { key: "living", label: "Living", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800" },
-  { key: "comedor", label: "Comedor", image: "https://images.unsplash.com/photo-1604578762246-41134e37f9cc?auto=format&fit=crop&q=80&w=800" },
-  { key: "dormitorio", label: "Dormitorio", image: "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=80&w=800" },
-  { key: "cocina", label: "Cocina", image: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=800" },
-  { key: "oficina", label: "Oficina", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&q=80&w=800" },
-  { key: "exterior", label: "Exterior", image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800" },
+const mockProducts: Product[] = [
+  {
+    id: 1,
+    slug: "scandi-sofa-premium",
+    name: "Scandi Sofa Premium 3 Cuerpos Tapizado En Lino Anti-manchas Color Gris Claro",
+    price: 850000,
+    description: "Diseño nórdico, máximo confort.",
+    category: "Sofás",
+    room: "Living",
+    style: "Nórdico",
+    imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 1, url: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 1,
+    store: { id: 1, name: "Amobly Store", slug: "amobly-store" },
+  },
+  {
+    id: 2,
+    slug: "eames-lounge-chair",
+    name: "Eames Lounge Chair Cuero Genuino Madera Nogal Reposera Clásica",
+    price: 1299000,
+    description: "Clásico del diseño moderno.",
+    category: "Sillones",
+    room: "Living",
+    style: "Moderno",
+    imageUrl: "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 2, url: "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 1,
+    store: { id: 2, name: "Luxe Furniture", slug: "luxe-furniture" },
+  },
+  {
+    id: 3,
+    slug: "nordic-oak-table",
+    name: "Nordic Oak Table Mesa De Comedor 6 Puestos Roble Macizo Natural",
+    price: 450000,
+    description: "Mesa de comedor en roble macizo.",
+    category: "Mesas",
+    room: "Comedor",
+    style: "Nórdico",
+    imageUrl: "https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 3, url: "https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 2,
+    store: { id: 3, name: "Nordic Design", slug: "nordic-design" },
+  },
+  {
+    id: 4,
+    slug: "velvet-cloud-sofa",
+    name: "Velvet Cloud Sofa 3 Cuerpos Terciopelo Verde Esmeralda",
+    price: 950000,
+    description: "Sofá de terciopelo verde esmeralda.",
+    category: "Sofás",
+    room: "Living",
+    style: "Contemporáneo",
+    imageUrl: "https://images.unsplash.com/photo-1550226891-ef816aed4a98?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 4, url: "https://images.unsplash.com/photo-1550226891-ef816aed4a98?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 1,
+    store: { id: 1, name: "Amobly Store", slug: "amobly-store" },
+  },
+  {
+    id: 5,
+    slug: "minimalist-bed-frame",
+    name: "Minimalist Bed Frame Cama Matrimonial Cabecera Tapizada Lino",
+    price: 320000,
+    description: "Cama matrimonial con cabecera tapizada.",
+    category: "Camas",
+    room: "Dormitorio",
+    style: "Minimalista",
+    imageUrl: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 5, url: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 2,
+    store: { id: 4, name: "Atelier Home", slug: "atelier-home" },
+  },
+  {
+    id: 6,
+    slug: "modern-floor-lamp",
+    name: "Modern Arched Floor Lamp Lámpara De Pie Arco Regulable Mármol",
+    price: 189000,
+    description: "Lámpara de pie con arco regulable.",
+    category: "Iluminación",
+    room: "Living",
+    style: "Moderno",
+    imageUrl: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 6, url: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 3,
+    store: { id: 5, name: "Lumina", slug: "lumina" },
+  },
+  {
+    id: 7,
+    slug: "carrara-coffee-table",
+    name: "Carrara Marble Coffee Table Mesa Centro Mármol Patas Doradas",
+    price: 450000,
+    description: "Mesa de centro en mármol de Carrara.",
+    category: "Mesas",
+    room: "Living",
+    style: "Lujoso",
+    imageUrl: "https://images.unsplash.com/photo-1533090481720-856c6e3c1fdc?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 7, url: "https://images.unsplash.com/photo-1533090481720-856c6e3c1fdc?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 2,
+    store: { id: 2, name: "Luxe Furniture", slug: "luxe-furniture" },
+  },
+  {
+    id: 8,
+    slug: "scandinavian-accent-chair",
+    name: "Scandinavian Accent Chair Silla De Acento Patas Roble Gris",
+    price: 295000,
+    description: "Silla de acento con patas de roble.",
+    category: "Sillas",
+    room: "Comedor",
+    style: "Escandinavo",
+    imageUrl: "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?auto=format&fit=crop&q=80&w=800",
+    images: [{ id: 8, url: "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?auto=format&fit=crop&q=80&w=800" }],
+    inStock: true,
+    storeId: 1,
+    store: { id: 1, name: "Amobly Store", slug: "amobly-store" },
+  },
 ];
 
-export default async function Home() {
-  const [{ items: products }, { items: stores }] = await Promise.all([
-    fetchProducts(),
-    fetchStores(),
-  ]);
+const featuredRooms = [
+  { label: "Living", href: "/productos?room=living", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600" },
+  { label: "Comedor", href: "/productos?room=comedor", image: "https://images.unsplash.com/photo-1617104551722-3b2d51366400?auto=format&fit=crop&q=80&w=600" },
+  { label: "Dormitorio", href: "/productos?room=dormitorio", image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=600" },
+  { label: "Cocina", href: "/productos?room=cocina", image: "https://images.unsplash.com/photo-1556911220-bda9f7f7597e?auto=format&fit=crop&q=80&w=600" },
+];
 
-  const featured = products.filter((p: Product) => p.featured !== false).slice(0, 6);
+async function getProducts() {
+  try {
+    const data = await fetchProducts();
+    return data.items.length > 0 ? data.items : mockProducts;
+  } catch (error) {
+    console.warn("Backend no disponible, usando datos de ejemplo");
+    return mockProducts;
+  }
+}
+
+export default async function Home() {
+  const products = await getProducts();
 
   return (
-    <div className="space-y-0 pb-0">
-      {/* Hero Section - IKEA Style */}
-      <section className="relative overflow-hidden bg-primary min-h-[400px] md:min-h-[500px] flex items-center">
-        <Container className="relative z-10 py-12 md:py-20">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="space-y-6">
-              <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl">
-                Muebles para tu hogar
+    <div className="min-h-screen bg-[#f1f5f9] pb-8 sm:pb-12">
+      {/* Hero Section */}
+      <section className="bg-white">
+        <Container>
+          <div className="grid items-center gap-6 py-6 lg:grid-cols-2 lg:gap-8 lg:py-10">
+            {/* Text Content */}
+            <div className="order-2 lg:order-1 px-2 sm:px-0">
+              <span className="inline-flex items-center rounded-full bg-[#dbeafe] px-2.5 py-1 text-[11px] font-bold tracking-wider text-[#1d4ed8] sm:px-3 sm:text-xs">
+                NUEVA COLECCIÓN 2024
+              </span>
+
+              <h1 className="mt-3 text-2xl font-extrabold leading-tight text-[#0f172a] sm:text-3xl sm:mt-4 md:text-4xl lg:text-5xl">
+                Muebles para
+                <span className="block text-[#1d4ed8]">tu hogar</span>
               </h1>
-              <p className="text-lg text-white/80 leading-relaxed max-w-lg">
-                El catálogo curado de mueblerías cordobesas. Explorá en 3D y contactá directamente por WhatsApp.
+
+              <p className="mt-3 text-sm leading-relaxed text-[#475569] sm:text-base sm:mt-4 md:text-lg lg:max-w-xl">
+                Descubrí piezas únicas de alta gama para transformar cada rincón de tu casa. Calidad y diseño en un solo lugar.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                <Button asChild size="lg" className="bg-[#ffe815] text-slate-800 font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 transition-all duration-300 px-8 border-none ring-0">
-                  <Link href="/productos">Explorar catálogo</Link>
-                </Button>
-                <Button variant="secondary" asChild size="lg" className="bg-transparent border-2 border-white/40 font-bold text-white hover:bg-white/10 hover:-translate-y-0.5 transition-all duration-300">
-                  <Link href="/mueblerias">Ver mueblerías</Link>
-                </Button>
+
+              {/* CTA Buttons */}
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3 sm:mt-6">
+                <Link
+                  href="/productos"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d4ed8] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1d4ed8]/25 transition-all hover:bg-[#1e40af] active:scale-95 sm:px-6 sm:py-3 sm:text-base"
+                >
+                  Explorar catálogo
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/productos?ofertas=true"
+                  className="inline-flex items-center justify-center rounded-xl border border-[#cbd5e1] bg-[#f1f5f9] px-4 py-2.5 text-sm font-semibold text-[#1e293b] transition-colors hover:bg-[#e2e8f0] active:scale-95 sm:px-6 sm:py-3 sm:text-base"
+                >
+                  Ver ofertas
+                </Link>
               </div>
-            </div>
-            <div className="hidden md:block">
-              <img
-                src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1000"
-                alt="Muebles de diseño"
-                className="w-full h-auto object-cover rounded-lg shadow-xl"
-              />
-            </div>
-          </div>
-        </Container>
-      </section>
 
-      {/* Categories - Large Grid */}
-      <section className="bg-white py-8">
-        <Container>
-          <div className="flex items-center justify-between pb-6">
-            <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Explorá por ambiente</h2>
-            <Link href="/productos" className="hidden md:inline-flex text-sm font-bold text-gray-900 hover:underline underline-offset-4">
-              Ver todos →
-            </Link>
-          </div>
-
-          {/* Grid Layout - 3 columns on desktop, 2 on mobile */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-            {categories.map((cat, index) => (
-              <Link
-                key={cat.key}
-                href={`/productos?room=${cat.key}`}
-                className={`group relative overflow-hidden bg-gray-100 ${index === 0 ? 'col-span-2 md:col-span-2 aspect-[16/9] md:aspect-[2/1]' : 'aspect-square'
-                  }`}
-              >
-                <img
-                  src={cat.image}
-                  alt={cat.label}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
-                <div className="absolute inset-x-0 bottom-0 p-4 md:p-6">
-                  <h3 className="text-lg md:text-2xl font-bold text-white drop-shadow-lg">
-                    {cat.label}
-                  </h3>
-                  <span className="inline-flex items-center gap-1 text-sm text-white/90 font-medium mt-1 group-hover:underline">
-                    Ver productos
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </span>
+              {/* Stats - Mobile: Horizontal scroll */}
+              <div className="mt-5 flex gap-4 overflow-x-auto pb-2 border-t border-[#e2e8f0] pt-4 sm:mt-6 sm:gap-8 sm:overflow-visible sm:pb-0">
+                <div className="flex-shrink-0">
+                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">12k+</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Clientes</p>
                 </div>
-              </Link>
-            ))}
-          </div>
+                <div className="flex-shrink-0">
+                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">4.9/5</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Valoración</p>
+                </div>
+                <div className="flex-shrink-0">
+                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">24h</p>
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Envío express</p>
+                </div>
+              </div>
+            </div>
 
-          <div className="mt-6 text-center md:hidden">
-            <Link href="/productos" className="inline-block w-full bg-dark text-white font-bold py-3 px-6 text-sm transition hover:bg-gray-800">
-              Ver todos los ambientes
-            </Link>
+            {/* Hero Image */}
+            <div className="order-1 flex items-center justify-center lg:order-2">
+              <div className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[500px]">
+                <HeroImage
+                  src="/sofa-hero-cropped.png"
+                  alt="Sofá"
+                  fallbackSrc="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600"
+                  className="transform transition-transform duration-500 hover:scale-[1.02]"
+                />
+              </div>
+            </div>
           </div>
         </Container>
       </section>
 
-      {/* Featured Products */}
-      <section className="bg-gray-50 py-12">
-        <DynamicCategorySlider
-          subtitle="Destacados"
-          title="Productos populares"
-          viewAllLink="/productos"
-          viewAllText="Ver catálogo"
-        >
-          {(featured.length ? featured : products).map((product: Product) => (
-            <MarketplaceProductCard key={product.id} product={product} />
-          ))}
-        </DynamicCategorySlider>
+      {/* Benefits Bar - Mobile optimized */}
+      <section className="border-b border-[#e2e8f0] bg-white">
+        <Container>
+          <div className="flex overflow-x-auto py-3 gap-4 sm:gap-0 sm:py-4 sm:justify-around">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Truck className="h-4 w-4 text-[#16a34a] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[#334155] sm:text-sm">Envío gratis</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Shield className="h-4 w-4 text-[#2563eb] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[#334155] sm:text-sm">Garantía 12 meses</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Clock className="h-4 w-4 text-[#f97316] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[#334155] sm:text-sm">Entrega 24-48hs</span>
+            </div>
+          </div>
+        </Container>
       </section>
 
-      {/* Stores Section */}
-      <section className="bg-slate-50 py-14">
+      {/* Rooms Section */}
+      <section className="mt-4 sm:mt-6">
         <Container>
-          <div className="flex items-center justify-between pb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Mueblerías aliadas</h2>
-              <p className="mt-2 text-slate-600">Comercios locales de Córdoba con catálogos digitales</p>
+          <div className="rounded-xl border border-[#e2e8f0]/60 bg-white p-3 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center justify-between sm:mb-4">
+              <h2 className="text-sm font-semibold text-[#0f172a] sm:text-lg">Explorá por ambientes</h2>
+              <Link href="/productos" className="text-xs font-medium text-[#2563eb] hover:underline sm:text-sm">
+                Ver todos
+              </Link>
             </div>
-            <Link 
-              href="/mueblerias" 
-              className="hidden md:inline-flex items-center gap-1 text-sm font-semibold text-slate-900 hover:text-slate-700 transition-colors"
-            >
-              Ver todas
-              <ArrowRight size={16} />
-            </Link>
+
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+              {featuredRooms.map((room) => (
+                <Link
+                  key={room.href}
+                  href={room.href}
+                  className="group overflow-hidden rounded-lg border border-[#e2e8f0]"
+                >
+                  <div className="relative aspect-[16/10]">
+                    <img
+                      src={room.image}
+                      alt={room.label}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <span className="absolute bottom-2 left-2 text-xs font-semibold text-white sm:bottom-3 sm:left-3 sm:text-sm">
+                      {room.label}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
-          
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {(stores.slice(0, 4) || []).map((store: Store) => (
-              <StoreCard key={store.id} store={store} variant="featured" />
-            ))}
-            {stores.length === 0 && (
-              <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-                <StoreIcon className="mx-auto h-10 w-10 text-slate-300" />
-                <p className="mt-3 text-sm text-slate-600">Próximamente mueblerías adheridas</p>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-8 text-center md:hidden">
-            <Link 
-              href="/mueblerias" 
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Ver todas las mueblerías
-              <ArrowRight size={16} />
-            </Link>
+        </Container>
+      </section>
+
+      {/* Products Section */}
+      <section className="mt-4 sm:mt-6">
+        <Container>
+          <div className="rounded-xl border border-[#e2e8f0]/60 bg-white p-3 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center justify-between border-b border-[#e2e8f0] pb-3 sm:mb-4 sm:pb-4">
+              <h2 className="text-base font-semibold text-[#0f172a] sm:text-xl">Productos destacados</h2>
+              <Link 
+                href="/productos" 
+                className="text-xs font-medium text-[#2563eb] hover:underline sm:text-sm"
+              >
+                Ver más
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {products.slice(0, 8).map((product: Product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
         </Container>
       </section>

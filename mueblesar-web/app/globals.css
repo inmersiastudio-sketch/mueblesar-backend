@@ -31,3 +31,7 @@ body {
   color: #111111;
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
+
+html {
+  font-size: 100%;
+}

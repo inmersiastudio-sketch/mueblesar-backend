@@ -76,31 +76,31 @@ export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl:
   const next = () => setIndex((i) => (i + 1) % safeImages.length);
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col space-y-3">
       {hasAr && (
         <div className="flex justify-center">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <div className="inline-flex rounded-lg border border-[#dbe3ef] bg-[#f8fafc] p-1">
             <button
               type="button"
               onClick={() => setViewMode("3d")}
-              className={`inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${viewMode === "3d" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "3d" ? "bg-white text-[#1d4ed8] shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
             >
-              <Cuboid size={16} /> 3D Interactivo
+              <Cuboid size={14} /> 3D Interactivo
             </button>
             <button
               type="button"
               onClick={() => setViewMode("2d")}
-              className={`inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${viewMode === "2d" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "2d" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
             >
-              <ImageIcon size={16} /> Fotos
+              <ImageIcon size={14} /> Fotos
             </button>
           </div>
         </div>
       )}
 
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
+      <div className="relative min-h-[240px] flex-1 overflow-hidden rounded-xl border border-[#dbe3ef] bg-[#f8fafc] shadow-sm">
         {viewMode === "3d" && glbUrl ? (
           <div className="h-full w-full flex items-center justify-center cursor-move">
             {/* @ts-expect-error viewMode bounds it but typescript still complains on custom elements */}
@@ -120,20 +120,20 @@ export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl:
           </div>
         ) : safeImages.length > 0 ? (
           <>
-            <img src={safeImages[index]} alt={alt} className="h-full w-full object-cover" />
+            <img src={safeImages[index]} alt={alt} className="h-full w-full object-contain p-5" />
             {safeImages.length > 1 && (
               <>
                 <button
                   type="button"
                   onClick={prev}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow hover:bg-white"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white"
                 >
                   ←
                 </button>
                 <button
                   type="button"
                   onClick={next}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow hover:bg-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white"
                 >
                   →
                 </button>
@@ -146,7 +146,7 @@ export function ImageCarousel({ images, alt, arUrl, glbUrl: propGlbUrl, usdzUrl:
       </div>
 
       {!hideThumbnails && safeImages.length > 1 && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-2">
           {safeImages.slice(0, 8).map((img, i) => (
             <button
               key={img + i}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { QrCode, Ruler, Smartphone, X } from "lucide-react";
+import { QrCode, Ruler, Smartphone, X, Box } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { useARUrls, useDimensions, useDevice, useARTracking, useARViewTracker } from "@/hooks";
 
@@ -316,33 +316,16 @@ export function ARPreview({
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="lg"
-        className="w-full rounded-full h-12 font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-2 transition-colors"
+      <button
+        className="h-12 w-full rounded-xl font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm"
         onClick={() => {
           track("ar_click", { hasIos: Boolean(iosUrl) });
           setOpen(true);
         }}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2-1m2 1l-2 1m2-1v10l-2 1m-10-11l2-1m-2 1l2 1m-2-1v10l2 1m10-11l-2-1m-6-3l-2 1m2-1l2 1"
-          />
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-        Ver en AR
-      </Button>
+        <Box className="w-5 h-5" />
+        Ver en mi casa (AR)
+      </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 md:p-4">
@@ -403,8 +386,7 @@ export function ARPreview({
                     <Smartphone size={16} /> Abrir en este dispositivo
                   </div>
                   <Button
-                    asChild
-                    className="w-full h-12 md:h-10"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1d4ed8] font-bold text-white shadow-sm transition-all hover:bg-[#1e40af] active:scale-[0.98]"
                     onClick={() => track("ar_launch", { target: redirectUrl || androidIntent })}
                   >
                     <a href={redirectUrl || androidIntent} target="_blank" rel="noreferrer">

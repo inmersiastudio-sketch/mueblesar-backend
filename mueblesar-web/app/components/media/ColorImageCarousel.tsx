@@ -130,9 +130,9 @@ export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, a
   }, [selectedColor, groups, images]);
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       {availableColors.length > 0 && (
-        <div className="flex items-center gap-3 mb-3">
+        <div className="mb-2.5 flex items-center gap-2.5">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Color:</span>
           <div className="flex items-center gap-2">
             {availableColors.map((col) => {
@@ -150,7 +150,7 @@ export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, a
                     window.dispatchEvent(new CustomEvent("color-swatch-change", { detail: { color: col } }));
                   }}
                   className={`
-                    relative w-8 h-8 rounded-full transition-all duration-200
+                    relative h-7 w-7 rounded-full transition-all duration-200
                     ${isSelected
                       ? "ring-2 ring-offset-2 ring-[#0058a3] scale-110"
                       : "hover:scale-110 hover:ring-2 hover:ring-offset-1 hover:ring-slate-300"
@@ -180,13 +180,15 @@ export function ColorImageCarousel({ images, alt, initialColor, fallbackColor, a
             })}
           </div>
           {selectedColor && (
-            <span className="text-sm text-slate-600 font-medium">
+            <span className="text-sm font-medium text-slate-600">
               {getColorLabel(selectedColor)}
             </span>
           )}
         </div>
       )}
-      <ImageCarousel images={carouselImages} alt={alt} arUrl={arUrl} glbUrl={glbUrl} usdzUrl={usdzUrl} hideThumbnails={availableColors.length > 0} />
+      <div className="min-h-0 flex-1">
+        <ImageCarousel images={carouselImages} alt={alt} arUrl={arUrl} glbUrl={glbUrl} usdzUrl={usdzUrl} hideThumbnails={availableColors.length > 0} />
+      </div>
     </div>
   );
 }

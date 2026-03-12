@@ -1,5 +1,6 @@
 "use client";
 
+import { Heart } from "lucide-react";
 import { FavoriteItem, useFavorites } from "../../lib/favorites";
 
 type Props = {
@@ -13,11 +14,11 @@ export function FavoriteButton({ product, size = "md", className = "" }: Props) 
   const active = isFavorite(product.slug);
 
   const baseClasses =
-    "inline-flex items-center justify-center rounded-full border transition shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-  const sizeClasses = size === "sm" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm";
+    "inline-flex items-center justify-center rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+  const sizeClasses = size === "sm" ? "h-7 w-7" : "h-9 w-9";
   const colorClasses = active
-    ? "border-primary/60 bg-primary/10 text-primary"
-    : "border-slate-200 bg-white text-slate-600 hover:border-primary/40 hover:text-primary";
+    ? "bg-white shadow-sm text-red-500"
+    : "bg-white/90 shadow-sm text-[#999999] hover:text-[#666666]";
 
   return (
     <button
@@ -31,7 +32,7 @@ export function FavoriteButton({ product, size = "md", className = "" }: Props) 
         toggleFavorite(product);
       }}
     >
-      {active ? "❤" : "♡"}
+      <Heart className={`${size === "sm" ? "w-4 h-4" : "w-5 h-5"} ${active ? "fill-current" : ""}`} />
     </button>
   );
 }

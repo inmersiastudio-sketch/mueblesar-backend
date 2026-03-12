@@ -1,199 +1,220 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Container } from "./Container";
-import { SearchBar } from "../ui/SearchBar";
 import { useCart } from "../../context/CartContext";
+import { Search, ShoppingCart, User, Menu, X, Sofa } from "lucide-react";
 
 const nav = [
-  { href: "/productos", label: "Productos" },
+  { href: "/productos", label: "Catálogo" },
   { href: "/mueblerias", label: "Mueblerías" },
-  { href: "/ar", label: "AR Experience" },
+  { href: "/productos?ofertas=true", label: "Ofertas" },
+  { href: "/contacto", label: "Contacto" },
 ];
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const [isAtTop, setIsAtTop] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const lastScrollY = useRef(0);
   const { items } = useCart();
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      setIsAtTop(currentScrollY < 10);
+      
+      if (currentScrollY < 10) {
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY.current) {
+        setIsVisible(false);
+      } else {
+        setIsVisible(true);
+      }
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      window.location.href = `/productos?q=${encodeURIComponent(searchQuery)}`;
+    }
+  };
+
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-[0_2px_16px_0_rgba(0,88,163,0.08)]">
-        {/* Main Header Row */}
-        <Container>
-          <div className="flex h-16 items-center gap-6">
+      <header 
+        className={`fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm transition-all duration-300 ease-in-out
+          ${isVisible ? "translate-y-0" : "-translate-y-full"}
+          ${!isAtTop ? "shadow-md" : ""}
+        `}
+      >
+        {/* Main Header */}
+        <div className="mx-auto w-full max-w-[1700px] px-3 sm:px-4 lg:px-8">
+          <div className="flex h-14 sm:h-16 items-center justify-between gap-2 sm:gap-4">
             {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
-              <Image
-                src="/icono_azul.png"
-                alt="Amobly"
-                width={150}
-                height={40}
-                className="h-10 w-auto"
-                priority
-              />
+            <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-[#1d4ed8] text-white">
+                <Sofa className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              </span>
+              <span className="text-xl sm:text-2xl font-extrabold leading-none text-[#0f172a] tracking-tight">AMOBLY</span>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            {/* Search Bar - Desktop */}
-            <div className="hidden md:flex flex-1 max-w-2xl">
+            {/* Desktop Search */}
+            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-[520px] mx-4">
               <div className="w-full relative">
-                <SearchBar />
+                <div className="flex items-center rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 shadow-sm focus-within:border-[#1d4ed8] focus-within:ring-2 focus-within:ring-[#1d4ed8]/20 transition-all">
+                  <Search className="w-4 h-4 text-[#94a3b8] mr-2 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar muebles..."
+                    className="w-full border-none bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94a3b8]"
+                  />
+                </div>
               </div>
-            </div>
+            </form>
 
-            {/* Right Icons */}
-            <div className="flex items-center gap-1 ml-auto">
-              {/* Login/Account for Stores */}
-              <Link
-                href="/login"
-                className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
-                title="Acceso exclusivo para mueblerías"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
-                </svg>
-                <span>Acceso Mueblerías</span>
-              </Link>
-
-              {/* Favorites */}
-              <Link
-                href="/favoritos"
-                className="p-2.5 text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="Favoritos"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-                </svg>
-              </Link>
-
+            {/* Right Actions */}
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Cart */}
               <Link
                 href="/carrito"
-                className="relative p-2.5 text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="Carrito"
+                className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg text-[#334155] transition-colors hover:bg-[#e2e8f0]"
+                aria-label="Ir al carrito"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
+                <ShoppingCart className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-                    {cartCount > 99 ? "99+" : cartCount}
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-[#2563eb] text-[9px] sm:text-[10px] font-bold text-white">
+                    {cartCount > 9 ? "9+" : cartCount}
                   </span>
                 )}
+              </Link>
+
+              {/* Mi Cuenta - Desktop */}
+              <Link
+                href="/login"
+                className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-[#1d4ed8] px-3 sm:px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1e40af] active:scale-95"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden lg:inline">Mi Cuenta</span>
               </Link>
 
               {/* Mobile Menu Button */}
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="lg:hidden p-2.5 text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                className="lg:hidden p-2 text-[#334155] hover:bg-[#e2e8f0] rounded-lg transition-colors active:scale-95"
                 aria-label="Abrir menú"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
+                <Menu className="w-5 h-5" />
               </button>
             </div>
           </div>
-        </Container>
 
-        {/* Mobile Search Bar */}
-        <div className="border-t border-gray-100 px-4 py-3 md:hidden bg-white">
-          <SearchBar />
+          {/* Mobile Search - Below header on mobile */}
+          <form onSubmit={handleSearch} className="pb-3 md:hidden">
+            <div className="flex items-center rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5 shadow-sm focus-within:border-[#1d4ed8] focus-within:ring-2 focus-within:ring-[#1d4ed8]/20 transition-all">
+              <Search className="w-4 h-4 text-[#94a3b8] mr-2 flex-shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar muebles..."
+                className="w-full border-none bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94a3b8]"
+              />
+            </div>
+          </form>
+        </div>
+
+        {/* Desktop Navigation Bar */}
+        <div className="hidden lg:block border-t border-[#e2e8f0] bg-white">
+          <div className="mx-auto w-full max-w-[1700px] px-4 lg:px-8">
+            <nav className="flex items-center gap-1 py-2">
+              {nav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="px-4 py-2 text-[15px] font-medium text-[#475569] rounded-lg transition-colors hover:text-[#1d4ed8] hover:bg-[#f1f5f9]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
         </div>
       </header>
 
-      {/* Mobile Menu Overlay */}
+      {/* Spacer for fixed header */}
+      <div className="h-[104px] md:h-[132px] lg:h-[118px]" />
+
+      {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileMenuOpen(false)}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" 
+            onClick={() => setMobileMenuOpen(false)} 
           />
-
-          {/* Drawer */}
-          <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-2xl animate-in slide-in-from-right duration-200">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <span className="text-lg font-bold text-gray-900">Menú</span>
+          <div className="absolute right-0 top-0 h-full w-[280px] sm:w-80 bg-white shadow-2xl transform transition-transform">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-3">
+              <span className="text-lg font-bold text-[#0f172a]">Menú</span>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="Cerrar menú"
+                className="p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <nav className="flex flex-col p-4 space-y-1">
+            {/* Mobile Navigation */}
+            <nav className="flex flex-col p-2">
               {nav.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="px-4 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
+                  className="px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
                 >
                   {item.label}
                 </Link>
               ))}
 
-              <hr className="my-3 border-gray-100" />
+              <hr className="my-2 border-[#e2e8f0]" />
 
               <Link
-                href="/favoritos"
+                href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 rounded-xl transition-colors flex items-center gap-3"
+                className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-                </svg>
-                Favoritos
+                <User className="w-5 h-5 text-[#2563eb]" />
+                Mi cuenta
               </Link>
 
               <Link
                 href="/carrito"
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 text-base font-medium text-gray-900 hover:bg-gray-100 rounded-xl transition-colors flex items-center justify-between"
+                className="flex items-center justify-between px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
               >
                 <span className="flex items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                  </svg>
+                  <ShoppingCart className="w-5 h-5" />
                   Carrito
                 </span>
                 {cartCount > 0 && (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2563eb] text-xs font-bold text-white">
                     {cartCount}
                   </span>
                 )}
-              </Link>
-
-              <hr className="my-3 border-gray-100" />
-
-              <Link
-                href="/registrar"
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-4 py-3 text-base font-bold text-white bg-primary hover:bg-primary-600 rounded-xl transition-colors text-center"
-              >
-                Vender en Amobly
               </Link>
             </nav>
           </div>
