@@ -42,8 +42,8 @@ export function createServer() {
 
   // CORS estricto basado en variable de entorno
   const allowedOrigins = process.env.FRONTEND_URL
-    ? process.env.FRONTEND_URL.split(',')
-    : ["http://localhost:3000"];
+    ? process.env.FRONTEND_URL.split(',').map(url => url.trim().replace(/\/$/, ''))
+    : ["http://localhost:3000", "http://localhost:3001"];
 
   app.use(
     cors({
@@ -53,7 +53,7 @@ export function createServer() {
   );
   app.use(express.json());
   app.use(cookieParser());
-  
+
   // Pretty logs en desarrollo, JSON en producción
   const isDev = process.env.NODE_ENV !== "production";
   const logger = isDev

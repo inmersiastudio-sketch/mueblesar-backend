@@ -52,7 +52,7 @@ export function signUser(user: AuthUser) {
 export function setAuthCookie(res: Response, token: string) {
   res.cookie(AUTH_COOKIE, token, {
     httpOnly: true,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     secure: isProd,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: "/",
@@ -63,7 +63,7 @@ export function clearAuthCookie(res: Response) {
   res.clearCookie(AUTH_COOKIE, {
     path: "/",
     httpOnly: true,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     secure: isProd,
   });
 }
