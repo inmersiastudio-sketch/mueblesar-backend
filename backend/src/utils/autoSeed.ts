@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -24,8 +24,8 @@ export async function runAutoSeed() {
     await prisma.user.create({
       data: {
         email: "admin@example.com",
-        passwordHash: hashedPassword,
-        role: "ADMIN",
+        password: hashedPassword,
+        role: UserRole.SUPER_ADMIN,
         name: "Admin User",
       },
     });

@@ -1,4 +1,4 @@
-import type { Role } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 /**
  * Authentication Type Definitions
@@ -8,7 +8,7 @@ import type { Role } from '@prisma/client';
 export interface AuthUser {
   id: number;
   email: string;
-  role: Role;
+  role: UserRole;
   storeId?: number | null;
   name?: string | null;
 }
@@ -17,14 +17,14 @@ export interface PublicUser {
   id: number;
   email: string;
   name: string | null;
-  role: Role;
+  role: UserRole;
   storeId: number | null;
 }
 
 export interface TokenPayload {
   sub: number;
   email: string;
-  role: Role;
+  role: UserRole;
   storeId?: number | null;
   name?: string | null;
 }

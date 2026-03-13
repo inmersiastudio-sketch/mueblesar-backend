@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { stores, products } from "../data/mock.js";
 import { storeController } from "../controllers/StoreController.js";
 import { requireAuth, requireRole } from "../lib/auth.js";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { asyncHandler } from "../middleware/errorHandler.js";
 
 const router = Router();
@@ -32,13 +32,13 @@ router.get("/", async (req, res) => {
       ? { id: { in: matchingIds } }
       : search
         ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" as const } },
-              { description: { contains: search, mode: "insensitive" as const } },
-              { address: { contains: search, mode: "insensitive" as const } },
-              { slug: { contains: search, mode: "insensitive" as const } },
-            ],
-          }
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { description: { contains: search, mode: "insensitive" as const } },
+            { address: { contains: search, mode: "insensitive" as const } },
+            { slug: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
         : undefined;
 
     const items = await prisma.store.findMany({
@@ -54,9 +54,9 @@ router.get("/", async (req, res) => {
   } catch (err) {
     const filtered = search
       ? stores.filter((s) => {
-          const haystack = `${s.name} ${s.slug} ${s.description ?? ""} ${s.address ?? ""}`.toLowerCase();
-          return haystack.includes(search.toLowerCase());
-        })
+        const haystack = `${s.name} ${s.slug} ${s.description ?? ""} ${s.address ?? ""}`.toLowerCase();
+        return haystack.includes(search.toLowerCase());
+      })
       : stores;
     return res.json({ items: filtered, total: filtered.length, source: "mock", error: (err as Error).message });
   }
@@ -70,7 +70,7 @@ router.get("/:slug", async (req, res) => {
       include: {
         products: {
           orderBy: { createdAt: "desc" },
-          include: { images: true },
+          include: { media: true },
         },
       },
     });
@@ -95,21 +95,21 @@ router.use(requireAuth);
 // GET /api/stores/:id/settings - Obtener configuración de la tienda
 router.get(
   "/:id/settings",
-  requireRole([Role.ADMIN, Role.STORE]),
+  requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]),
   asyncHandler(storeController.getSettings.bind(storeController))
 );
 
 // PUT /api/stores/:id/settings - Actualizar configuración de la tienda
 router.put(
   "/:id/settings",
-  requireRole([Role.ADMIN, Role.STORE]),
+  requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]),
   asyncHandler(storeController.updateSettings.bind(storeController))
 );
 
 // POST /api/stores/:id/generate-slug - Generar slug automáticamente
 router.post(
   "/:id/generate-slug",
-  requireRole([Role.ADMIN, Role.STORE]),
+  requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]),
   asyncHandler(storeController.generateSlug.bind(storeController))
 );
 

@@ -3,7 +3,7 @@ import { mercadoPagoService } from '../services/MercadoPagoService.js';
 import { Errors } from '../errors/AppError.js';
 import { createCheckoutSchema, planTypeSchema } from '../schemas/subscription.js';
 import type { AuthenticatedRequest } from '../lib/auth.js';
-import { Role } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 /**
  * SubscriptionController - HTTP Layer for subscription management
@@ -24,7 +24,7 @@ export class SubscriptionController {
     const user = (req as AuthenticatedRequest).user!;
 
     // Verify user has access to this store
-    if (user.role === Role.STORE && user.storeId !== storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId !== storeId) {
       throw Errors.forbidden('Access denied to this store');
     }
 
@@ -54,7 +54,7 @@ export class SubscriptionController {
     const user = (req as AuthenticatedRequest).user!;
 
     // Verify user has access to this store
-    if (user.role === Role.STORE && user.storeId !== storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId !== storeId) {
       throw Errors.forbidden('Access denied to this store');
     }
 
@@ -69,7 +69,7 @@ export class SubscriptionController {
    */
   async cancel(req: Request, res: Response): Promise<void> {
     const { storeId } = req.body;
-    
+
     if (!storeId || typeof storeId !== 'number') {
       throw Errors.validation('Store ID is required');
     }
@@ -77,7 +77,7 @@ export class SubscriptionController {
     const user = (req as AuthenticatedRequest).user!;
 
     // Verify user has access to this store
-    if (user.role === Role.STORE && user.storeId !== storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId !== storeId) {
       throw Errors.forbidden('Access denied to this store');
     }
 

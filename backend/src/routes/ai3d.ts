@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/auth.js";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { ai3dController } from "../controllers/AI3DController.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 
@@ -12,7 +12,7 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 const router = Router();
 
 // All routes require ADMIN/STORE role
-const roleMiddleware = requireRole([Role.ADMIN, Role.STORE]);
+const roleMiddleware = requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]);
 
 // Generate 3D model from image
 router.post("/generate", roleMiddleware, asyncHandler(ai3dController.generate.bind(ai3dController)));

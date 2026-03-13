@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { env } from "../config/env.js";
 
 const AUTH_COOKIE = "auth_token";
@@ -10,7 +10,7 @@ const TOKEN_TTL = "7d";
 export type AuthUser = {
   id: number;
   email: string;
-  role: Role;
+  role: UserRole;
   storeId?: number | null;
   name?: string | null;
 };
@@ -18,7 +18,7 @@ export type AuthUser = {
 type TokenPayload = {
   sub: number;
   email: string;
-  role: Role;
+  role: UserRole;
   storeId?: number | null;
   name?: string | null;
 };
@@ -30,7 +30,7 @@ const isProd = env.NODE_ENV === "production";
 const apiKeyUser: AuthUser = {
   id: 0,
   email: "api-key@system",
-  role: Role.ADMIN,
+  role: UserRole.SUPER_ADMIN,
   storeId: null,
   name: "API Key",
 };
@@ -114,7 +114,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-export function requireRole(roles: Role[]) {
+export function requireRole(roles: UserRole[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const user = (req as AuthenticatedRequest).user ?? (await authenticateRequest(req));
     if (!user) return res.status(401).json({ error: "Unauthorized" });
@@ -133,7 +133,7 @@ export async function verifyPassword(plain: string, hash: string) {
   return bcrypt.compare(plain, hash);
 }
 
-export function publicUser(user: { id: number; email: string; name?: string | null; role: Role; storeId?: number | null }) {
+export function publicUser(user: { id: number; email: string; name?: string | null; role: UserRole; storeId?: number | null }) {
   return {
     id: user.id,
     email: user.email,

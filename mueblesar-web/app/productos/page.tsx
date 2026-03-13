@@ -6,10 +6,10 @@ import { Container } from "../components/layout/Container";
 import { fetchProducts } from "../lib/api";
 import type { Product } from "@/types";
 import { ProductsClient } from "./ProductsClient";
-import type { ProductCardData } from "../components/products/ProductCard";
+import type { ProductListItem } from "@/types";
 
 // Datos de ejemplo para cuando el backend no está disponible
-const mockProducts: Product[] = [
+const mockProducts: any[] = [
   // ── LIVING ──────────────────────────────────────────────────
   {
     id: 1, slug: "scandi-sofa-premium", name: "Sofá Escandinavo Premium",
@@ -195,7 +195,7 @@ export default async function ProductsPage() {
   return (
     <div className="bg-[#F8F9FA] min-h-screen py-8">
       <Container>
-        <ProductsClient initialProducts={products as ProductCardData[]} />
+        <ProductsClient initialProducts={products as any[]} />
       </Container>
     </div>
   );

@@ -3,13 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useCart } from "../../context/CartContext";
-import { Search, ShoppingCart, User, Menu, X, Sofa } from "lucide-react";
+import { Search, ShoppingCart, User, Menu, X, Sofa, Heart } from "lucide-react";
 
 const nav = [
   { href: "/productos", label: "Catálogo" },
   { href: "/mueblerias", label: "Mueblerías" },
-  { href: "/productos?ofertas=true", label: "Ofertas" },
-  { href: "/contacto", label: "Contacto" },
+  { href: "/productos?sort=price_asc", label: "Ofertas" }
 ];
 
 export function Header() {
@@ -17,6 +16,7 @@ export function Header() {
   const [isVisible, setIsVisible] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const lastScrollY = useRef(0);
   const { items } = useCart();
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -52,49 +52,71 @@ export function Header() {
   return (
     <>
       <header 
-        className={`fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm transition-all duration-300 ease-in-out
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out
           ${isVisible ? "translate-y-0" : "-translate-y-full"}
-          ${!isAtTop ? "shadow-md" : ""}
+          ${!isAtTop ? "bg-white/95 backdrop-blur-md shadow-sm" : "bg-white"}
         `}
       >
-        {/* Main Header */}
         <div className="mx-auto w-full max-w-[1700px] px-3 sm:px-4 lg:px-8">
-          <div className="flex h-14 sm:h-16 items-center justify-between gap-2 sm:gap-4">
-            {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-              <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-[#1d4ed8] text-white">
-                <Sofa className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+          {/* Main Header Row - Más compacto */}
+          <div className="flex h-12 sm:h-14 items-center justify-between gap-3">
+            {/* Logo - Más compacto */}
+            <Link href="/" className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary-600)] text-white shadow-sm">
+                <Sofa className="h-4 w-4" />
               </span>
-              <span className="text-xl sm:text-2xl font-extrabold leading-none text-[#0f172a] tracking-tight">AMOBLY</span>
+              <span className="text-lg sm:text-xl font-bold text-[var(--gray-900)] tracking-tight">AMOBLY</span>
             </Link>
 
+            {/* Desktop Navigation - Más minimal */}
+            <nav className="hidden lg:flex items-center">
+              {nav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="px-3 py-1.5 text-sm font-medium text-[var(--gray-600)] rounded-lg transition-colors hover:text-[var(--primary-600)] hover:bg-[var(--primary-50)]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
             {/* Desktop Search */}
-            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-[520px] mx-4">
+            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-[400px] mx-4">
               <div className="w-full relative">
-                <div className="flex items-center rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 shadow-sm focus-within:border-[#1d4ed8] focus-within:ring-2 focus-within:ring-[#1d4ed8]/20 transition-all">
-                  <Search className="w-4 h-4 text-[#94a3b8] mr-2 flex-shrink-0" />
+                <div className="flex items-center rounded-xl border border-[var(--gray-200)] bg-white px-3 py-2 shadow-sm focus-within:border-[var(--primary-600)] focus-within:ring-2 focus-within:ring-[var(--primary-100)] transition-all">
+                  <Search className="w-4 h-4 text-[var(--gray-400)] mr-2 flex-shrink-0" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar muebles..."
-                    className="w-full border-none bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94a3b8]"
+                    className="w-full border-none bg-transparent text-sm text-[var(--gray-700)] outline-none placeholder:text-[var(--gray-400)]"
                   />
                 </div>
               </div>
             </form>
 
-            {/* Right Actions */}
-            <div className="flex items-center gap-1 sm:gap-2">
-              {/* Cart */}
+            {/* Right Actions - Más compacto */}
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              {/* Favoritos - Desktop */}
+              <Link
+                href="/favoritos"
+                className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[var(--gray-500)] transition-colors hover:bg-[var(--gray-100)] hover:text-[var(--gray-900)]"
+                aria-label="Favoritos"
+              >
+                <Heart className="w-[18px] h-[18px]" />
+              </Link>
+
+              {/* Cart - Desktop */}
               <Link
                 href="/carrito"
-                className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg text-[#334155] transition-colors hover:bg-[#e2e8f0]"
+                className="hidden md:flex relative h-9 w-9 items-center justify-center rounded-full text-[var(--gray-500)] transition-colors hover:bg-[var(--gray-100)] hover:text-[var(--gray-900)]"
                 aria-label="Ir al carrito"
               >
-                <ShoppingCart className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+                <ShoppingCart className="w-[18px] h-[18px]" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-[#2563eb] text-[9px] sm:text-[10px] font-bold text-white">
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--primary-600)] text-[9px] font-bold text-white">
                     {cartCount > 9 ? "9+" : cartCount}
                   </span>
                 )}
@@ -103,7 +125,7 @@ export function Header() {
               {/* Mi Cuenta - Desktop */}
               <Link
                 href="/login"
-                className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-[#1d4ed8] px-3 sm:px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1e40af] active:scale-95"
+                className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-[var(--primary-600)] px-3 sm:px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-700)] active:scale-95"
               >
                 <User className="w-4 h-4" />
                 <span className="hidden lg:inline">Mi Cuenta</span>
@@ -113,7 +135,7 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="lg:hidden p-2 text-[#334155] hover:bg-[#e2e8f0] rounded-lg transition-colors active:scale-95"
+                className="lg:hidden p-2 text-[var(--gray-600)] hover:bg-[var(--gray-100)] rounded-full transition-colors"
                 aria-label="Abrir menú"
               >
                 <Menu className="w-5 h-5" />
@@ -121,57 +143,40 @@ export function Header() {
             </div>
           </div>
 
-          {/* Mobile Search - Below header on mobile */}
-          <form onSubmit={handleSearch} className="pb-3 md:hidden">
-            <div className="flex items-center rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5 shadow-sm focus-within:border-[#1d4ed8] focus-within:ring-2 focus-within:ring-[#1d4ed8]/20 transition-all">
-              <Search className="w-4 h-4 text-[#94a3b8] mr-2 flex-shrink-0" />
+          {/* Mobile Search - Más compacto */}
+          <form onSubmit={handleSearch} className="pb-2 md:hidden">
+            <div className="flex items-center rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-2 focus-within:bg-white focus-within:border-[var(--primary-600)] transition-all">
+              <Search className="w-4 h-4 text-[var(--gray-400)] mr-2 flex-shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar muebles..."
-                className="w-full border-none bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94a3b8]"
+                className="w-full border-none bg-transparent text-sm text-[var(--gray-700)] outline-none placeholder:text-[var(--gray-400)]"
               />
             </div>
           </form>
         </div>
-
-        {/* Desktop Navigation Bar */}
-        <div className="hidden lg:block border-t border-[#e2e8f0] bg-white">
-          <div className="mx-auto w-full max-w-[1700px] px-4 lg:px-8">
-            <nav className="flex items-center gap-1 py-2">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="px-4 py-2 text-[15px] font-medium text-[#475569] rounded-lg transition-colors hover:text-[#1d4ed8] hover:bg-[#f1f5f9]"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
       </header>
 
-      {/* Spacer for fixed header */}
-      <div className="h-[104px] md:h-[132px] lg:h-[118px]" />
+      {/* Spacer - Ajustado */}
+      <div className="h-[88px] md:h-[58px]" />
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
             onClick={() => setMobileMenuOpen(false)} 
           />
-          <div className="absolute right-0 top-0 h-full w-[280px] sm:w-80 bg-white shadow-2xl transform transition-transform">
+          <div className="absolute right-0 top-0 h-full w-[280px] bg-white shadow-2xl">
             {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-3">
-              <span className="text-lg font-bold text-[#0f172a]">Menú</span>
+            <div className="flex items-center justify-between border-b border-[var(--gray-100)] px-4 py-3">
+              <span className="text-base font-semibold text-[var(--gray-900)]">Menú</span>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
+                className="p-2 text-[var(--gray-500)] hover:bg-[var(--gray-100)] rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -184,34 +189,43 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
+                  className="px-4 py-3 text-[15px] font-medium text-[var(--gray-700)] rounded-xl hover:bg-[var(--gray-50)] hover:text-[var(--primary-600)] transition-colors"
                 >
                   {item.label}
                 </Link>
               ))}
 
-              <hr className="my-2 border-[#e2e8f0]" />
+              <hr className="my-2 border-[var(--gray-100)]" />
+
+              <Link
+                href="/favoritos"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-[var(--gray-700)] rounded-xl hover:bg-[var(--gray-50)] hover:text-[var(--primary-600)] transition-colors"
+              >
+                <Heart className="w-5 h-5" />
+                Favoritos
+              </Link>
 
               <Link
                 href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
+                className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-[var(--gray-700)] rounded-xl hover:bg-[var(--gray-50)] hover:text-[var(--primary-600)] transition-colors"
               >
-                <User className="w-5 h-5 text-[#2563eb]" />
+                <User className="w-5 h-5" />
                 Mi cuenta
               </Link>
 
               <Link
                 href="/carrito"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-4 py-3 text-[15px] font-medium text-[#334155] rounded-lg hover:bg-[#f1f5f9] hover:text-[#1d4ed8] transition-colors"
+                className="flex items-center justify-between px-4 py-3 text-[15px] font-medium text-[var(--gray-700)] rounded-xl hover:bg-[var(--gray-50)] hover:text-[var(--primary-600)] transition-colors"
               >
                 <span className="flex items-center gap-3">
                   <ShoppingCart className="w-5 h-5" />
                   Carrito
                 </span>
                 {cartCount > 0 && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2563eb] text-xs font-bold text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--primary-600)] text-xs font-bold text-white">
                     {cartCount}
                   </span>
                 )}

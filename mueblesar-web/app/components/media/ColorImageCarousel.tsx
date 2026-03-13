@@ -75,8 +75,13 @@ function resolveColor(name: string): string {
     if (lower.includes(key)) return value;
   }
 
-  // If it already looks like a CSS color (#hex, rgb, hsl, named css color), use it
-  if (/^(#|rgb|hsl)/.test(lower) || CSS.supports?.("color", lower)) {
+  // If it already looks like a CSS color (#hex, rgb, hsl), use it
+  if (/^(#|rgb|hsl)/.test(lower)) {
+    return name;
+  }
+  
+  // Check CSS.supports only on client side
+  if (typeof window !== "undefined" && CSS.supports?.("color", lower)) {
     return name;
   }
 

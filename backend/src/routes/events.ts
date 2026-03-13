@@ -1,5 +1,4 @@
 import express from "express";
-import { ArSource } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 
@@ -26,13 +25,13 @@ router.post("/ar-view", arViewLimiter, async (req, res) => {
 
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    const src: ArSource = (source?.toString().toUpperCase() as ArSource) ?? ArSource.UNKNOWN;
+    const src = source?.toString().toUpperCase() || "UNKNOWN";
 
-    await prisma.arView.create({
+    await prisma.productView.create({
       data: {
         productId: product.id,
-        storeId: product.storeId,
-        source: Object.values(ArSource).includes(src) ? src : ArSource.UNKNOWN,
+        sessionId: "ar-view-" + Date.now().toString(),
+        source: src,
       },
     });
 

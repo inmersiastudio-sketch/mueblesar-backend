@@ -6,11 +6,10 @@ import { FileUpload } from "../../components/ui/FileUpload";
 import { AI3DGenerator } from "../../components/admin/AI3DGenerator";
 import { ARPreview } from "../../components/products/ARPreview";
 import { ProductLogModal } from "../../components/admin/inventory/ProductLogModal";
+import { VariantManager, type ProductVariantForm } from "../../components/admin/VariantManager";
 
+import type { AdminProductListItem, ValidationResult, SessionUser as Store, ProductLogEntry } from "@/types";
 import {
-  Product,
-  ValidationResult,
-  Store,
   FormState,
   emptyForm,
   isValidUrl,
@@ -57,7 +56,7 @@ export default function InventoryPage() {
   const { success: showSuccess, error: showError } = useToast();
 
   // Data
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<AdminProductListItem[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +79,7 @@ export default function InventoryPage() {
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [variants, setVariants] = useState<ProductVariantForm[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [formValidation, setFormValidation] = useState<ValidationResult | { error: string } | null>(null);
@@ -130,8 +130,8 @@ export default function InventoryPage() {
   const sortedProducts = useMemo(() => {
     if (!sortField) return filteredProducts;
     return [...filteredProducts].sort((a, b) => {
-      let va: any = a[sortField as keyof Product];
-      let vb: any = b[sortField as keyof Product];
+      let va: any = a[sortField as keyof AdminProductListItem];
+      let vb: any = b[sortField as keyof AdminProductListItem];
       if (typeof va === "string") va = va.toLowerCase();
       if (typeof vb === "string") vb = vb.toLowerCase();
       if (va == null) return 1;
@@ -169,7 +169,7 @@ export default function InventoryPage() {
     }
   }, [user, apiBase, loadProducts]);
 
-  const updateProductField = async (id: number, patch: Partial<Product>) => {
+  const updateProductField = async (id: number, patch: Partial<AdminProductListItem>) => {
     try {
       const res = await fetch(`${apiBase}/api/admin/products/${id}`, {
         method: "PUT", headers: { "content-type": "application/json" }, credentials: "include",
@@ -194,7 +194,7 @@ export default function InventoryPage() {
     }
   };
 
-  const copyARLink = async (product: Product) => {
+  const copyARLink = async (product: AdminProductListItem) => {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     const arUrl = `${siteUrl}/ar/${product.id}`;
     setCopyingId(product.id);
@@ -208,7 +208,7 @@ export default function InventoryPage() {
     }
   };
 
-  const validate = async (product: Product) => {
+  const validate = async (product: AdminProductListItem) => {
     if (!product.arUrl) { setValidation((p) => ({ ...p, [product.id]: { error: "Sin arUrl" } })); return; }
     setValidation((p) => ({ ...p, [product.id]: { error: "Validando..." } }));
     try {
@@ -225,12 +225,13 @@ export default function InventoryPage() {
   // ─── Drawer CRUD ───
   const openCreate = () => {
     setForm({ ...emptyForm, storeId: user?.storeId ?? undefined });
+    setVariants([]); // Empezar sin variantes, el usuario las agrega
     setFormErrors({});
     setFormValidation(null);
     setDrawerOpen(true);
   };
 
-  const openEdit = (p: Product) => {
+  const openEdit = (p: AdminProductListItem) => {
     setForm({
       id: p.id, storeId: p.storeId, name: p.name, slug: p.slug,
       description: p.description ?? "", category: p.category ?? "", room: p.room ?? "",
@@ -241,12 +242,39 @@ export default function InventoryPage() {
       images: p.images?.map((i) => ({ url: i.url, type: i.type || undefined })) ?? [],
       inStock: Boolean(p.inStock), stockQty: p.stockQty ? String(p.stockQty) : "",
     });
+    // Cargar variantes del producto
+    if (p.variants && p.variants.length > 0) {
+      setVariants(p.variants.map((v) => ({
+        id: v.id,
+        sku: p.sku || "",
+        name: v.name,
+        salePrice: v.salePrice,
+        listPrice: v.salePrice, // Asumimos mismo precio si no hay listPrice
+        currency: "ARS",
+        stock: v.stock,
+        isDefault: v.isDefault,
+        images: [], // Las imágenes de variante vendrían de otra relación
+      })));
+    } else {
+      // Crear una variante default con los datos del producto plano (legacy)
+      setVariants([{
+        sku: p.sku || "",
+        name: p.name,
+        color: p.color || undefined,
+        listPrice: p.price || 0,
+        salePrice: p.price || 0,
+        currency: "ARS",
+        stock: p.stockQty || 0,
+        isDefault: true,
+        images: p.images?.map((i) => ({ url: i.url, alt: p.name })) || [],
+      }]);
+    }
     setFormErrors({});
     setFormValidation(null);
     setDrawerOpen(true);
   };
 
-  const closeDrawer = () => { setDrawerOpen(false); setForm(emptyForm); setFormErrors({}); setFormValidation(null); };
+  const closeDrawer = () => { setDrawerOpen(false); setForm(emptyForm); setVariants([]); setFormErrors({}); setFormValidation(null); };
 
   const submitForm = async () => {
     const errors: Record<string, string> = {};
@@ -278,6 +306,22 @@ export default function InventoryPage() {
         heightCm: form.heightCm ? Number(form.heightCm) : undefined,
         images: form.images.filter((i) => i.url).map((i) => ({ url: i.url, type: i.type || undefined })),
         inStock: form.inStock, stockQty: form.stockQty ? Number(form.stockQty) : undefined,
+        // Nuevos campos de variantes
+        variants: variants.map((v) => ({
+          id: v.id,
+          sku: v.sku,
+          name: v.name,
+          color: v.color,
+          fabric: v.fabric,
+          size: v.size,
+          finish: v.finish,
+          listPrice: v.listPrice,
+          salePrice: v.salePrice,
+          currency: v.currency,
+          stock: v.stock,
+          isDefault: v.isDefault,
+          images: v.images,
+        })),
       };
       const tol = Number(settings.tolerance ?? "0.05") || 0.05;
       const isEdit = Boolean(form.id);
@@ -798,6 +842,15 @@ export default function InventoryPage() {
                   {F("Profund.", "depthCm", { type: "number" })}
                   {F("Alto", "heightCm", { type: "number" })}
                 </div>
+              </div>
+
+              {/* Variants Manager */}
+              <div className="border-t border-slate-200 pt-4">
+                <VariantManager
+                  variants={variants}
+                  productName={form.name}
+                  onChange={setVariants}
+                />
               </div>
 
               {/* Image URL */}

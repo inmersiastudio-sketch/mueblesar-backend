@@ -3,22 +3,26 @@
 import Link from "next/link";
 import { FavoriteItem, useFavorites } from "../../lib/favorites";
 import { ProductCard } from "../products/ProductCard";
+import { EmptyFavorites } from "../ui/EmptyState";
 
 export function FavoritesView() {
   const { items } = useFavorites();
 
   if (!items.length) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">
-        Aún no tenés favoritos. Volvé al catálogo y guardá lo que te guste.
-      </div>
-    );
+    return <EmptyFavorites />;
   }
 
   const toProductCard = (fav: FavoriteItem) => ({
-    ...fav,
+    id: fav.id,
+    name: fav.name,
+    slug: fav.slug,
+    price: fav.price,
+    currency: "ARS",
+    category: fav.category ?? "",
+    room: fav.room ?? "",
+    imageUrl: fav.imageUrl ?? undefined,
     store: fav.storeSlug || fav.storeName ? { name: fav.storeName ?? "", slug: fav.storeSlug ?? "" } : undefined,
-    images: fav.imageUrl ? [{ url: fav.imageUrl }] : undefined,
+    inStock: true,
   });
 
   return (

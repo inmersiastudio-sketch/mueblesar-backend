@@ -3,8 +3,8 @@
 import { usePathname } from "next/navigation";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { BottomNav } from "./BottomNav";
 import { ARAnalyticsBridge } from "../analytics/ARAnalyticsBridge";
-import { FloatingCartButton } from "../cart/FloatingCartButton";
 
 export function PublicWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -19,9 +19,9 @@ export function PublicWrapper({ children }: { children: React.ReactNode }) {
         <>
             <Header />
             <ARAnalyticsBridge />
-            <main className="min-h-screen">{children}</main>
+            <main className="min-h-screen pb-16 md:pb-0">{children}</main>
             <Footer />
-            <FloatingCartButton />
+            <BottomNav />
         </>
     );
 }

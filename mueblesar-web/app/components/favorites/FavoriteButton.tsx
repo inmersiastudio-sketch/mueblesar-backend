@@ -2,6 +2,7 @@
 
 import { Heart } from "lucide-react";
 import { FavoriteItem, useFavorites } from "../../lib/favorites";
+import { useToast } from "../../context/ToastContext";
 
 type Props = {
   product: FavoriteItem;
@@ -11,6 +12,7 @@ type Props = {
 
 export function FavoriteButton({ product, size = "md", className = "" }: Props) {
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { success, info } = useToast();
   const active = isFavorite(product.slug);
 
   const baseClasses =
@@ -30,6 +32,11 @@ export function FavoriteButton({ product, size = "md", className = "" }: Props) 
         e.preventDefault();
         e.stopPropagation();
         toggleFavorite(product);
+        if (active) {
+          info(`${product.name} eliminado de favoritos`);
+        } else {
+          success(`${product.name} agregado a favoritos`);
+        }
       }}
     >
       <Heart className={`${size === "sm" ? "w-4 h-4" : "w-5 h-5"} ${active ? "fill-current" : ""}`} />

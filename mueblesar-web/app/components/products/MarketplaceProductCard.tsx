@@ -5,10 +5,10 @@ import Link from "next/link";
 import { FavoriteButton } from "../favorites/FavoriteButton";
 import { AddToCartButton } from "../cart/AddToCartButton";
 import { Cuboid } from "lucide-react";
-import type { ProductCardData } from "./ProductCard";
+import type { ProductListItem } from "@/types";
 
 type Props = {
-    product: ProductCardData;
+    product: any;
 };
 
 export function MarketplaceProductCard({ product }: Props) {

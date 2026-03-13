@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { Errors } from '../errors/AppError.js';
 import { catalogService } from '../services/CatalogService.js';
 import type { AuthenticatedRequest } from '../lib/auth.js';
-import { Role } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 /**
  * StoreController - Controlador para gestión de tiendas
@@ -21,7 +21,7 @@ export class StoreController {
    */
   async updateSettings(req: Request, res: Response): Promise<void> {
     const storeId = parseInt(req.params.id);
-    
+
     if (isNaN(storeId)) {
       throw Errors.validation('Invalid store ID');
     }
@@ -31,7 +31,7 @@ export class StoreController {
     // Verificar acceso
     const store = await prisma.store.findUnique({
       where: { id: storeId },
-      include: { users: { select: { id: true } } },
+      include: { owner: true },
     }) as any;
 
     if (!store) {
@@ -39,8 +39,8 @@ export class StoreController {
     }
 
     // Solo ADMIN o usuarios de la tienda pueden modificar
-    const isStoreUser = store.users.some((u: any) => u.id === user.id);
-    if (user.role !== Role.ADMIN && !isStoreUser) {
+    const isStoreUser = store.ownerId === user.id;
+    if (user.role !== UserRole.SUPER_ADMIN && !isStoreUser) {
       throw Errors.forbidden('Access denied to this store');
     }
 
@@ -110,7 +110,7 @@ export class StoreController {
 
     // Construir objeto de actualización
     const updateData: any = {};
-    
+
     if (slug !== undefined) updateData.slug = slug;
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -146,7 +146,7 @@ export class StoreController {
    */
   async getSettings(req: Request, res: Response): Promise<void> {
     const storeId = parseInt(req.params.id);
-    
+
     if (isNaN(storeId)) {
       throw Errors.validation('Invalid store ID');
     }
@@ -155,7 +155,7 @@ export class StoreController {
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
-      include: { users: { select: { id: true } } },
+      include: { owner: true },
     }) as any;
 
     if (!store) {
@@ -163,8 +163,8 @@ export class StoreController {
     }
 
     // Verificar acceso
-    const isStoreUser = store.users.some((u: any) => u.id === user.id);
-    if (user.role !== Role.ADMIN && !isStoreUser) {
+    const isStoreUser = store.ownerId === user.id;
+    if (user.role !== UserRole.SUPER_ADMIN && !isStoreUser) {
       throw Errors.forbidden('Access denied to this store');
     }
 
@@ -180,7 +180,7 @@ export class StoreController {
    */
   async generateSlug(req: Request, res: Response): Promise<void> {
     const storeId = parseInt(req.params.id);
-    
+
     if (isNaN(storeId)) {
       throw Errors.validation('Invalid store ID');
     }
@@ -189,7 +189,7 @@ export class StoreController {
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
-      include: { users: { select: { id: true } } },
+      include: { owner: true },
     }) as any;
 
     if (!store) {
@@ -197,22 +197,22 @@ export class StoreController {
     }
 
     // Verificar acceso
-    const isStoreUser = store.users.some((u: any) => u.id === user.id);
-    if (user.role !== Role.ADMIN && !isStoreUser) {
+    const isStoreUser = store.ownerId === user.id;
+    if (user.role !== UserRole.SUPER_ADMIN && !isStoreUser) {
       throw Errors.forbidden('Access denied to this store');
     }
 
     // Generar slug base
     let baseSlug = catalogService.generateSlug(store.name);
-    
+
     // Verificar disponibilidad y agregar sufijo numérico si es necesario
     let slug = baseSlug;
     let counter = 1;
-    
+
     while (!(await catalogService.isSlugAvailable(slug, storeId))) {
       slug = `${baseSlug}-${counter}`;
       counter++;
-      
+
       // Evitar bucle infinito
       if (counter > 100) {
         throw Errors.internal('Could not generate unique slug');

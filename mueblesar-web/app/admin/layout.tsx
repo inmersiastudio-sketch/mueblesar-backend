@@ -26,6 +26,7 @@ export const useAdmin = () => useContext(AdminContext);
 const breadcrumbMap: Record<string, string> = {
     "/admin": "Dashboard",
     "/admin/inventory": "Inventario",
+    "/admin/inquiries": "Consultas",
     "/admin/orders": "Pedidos",
     "/admin/media": "Modelos AR",
     "/admin/settings": "Configuración",

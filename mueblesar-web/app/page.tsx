@@ -2,15 +2,17 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { ProductCard } from "./components/products/ProductCard";
 import { HeroImage } from "./components/HeroImage";
 import { Container } from "./components/layout/Container";
 import { fetchProducts } from "./lib/api";
 import { ArrowRight, Truck, Shield, Clock } from "lucide-react";
-import type { Product } from "@/types";
+import type { Product, ProductListItem } from "@/types";
+import { ProductGridSkeleton, CategoriesSkeleton, HeroSkeleton } from "./components/ui/Skeleton";
 
-const mockProducts: Product[] = [
+const mockProducts: any[] = [
   {
     id: 1,
     slug: "scandi-sofa-premium",
@@ -150,72 +152,82 @@ async function getProducts() {
   }
 }
 
-export default async function Home() {
+// Componente asíncrono para los productos
+async function ProductsSection() {
   const products = await getProducts();
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] pb-8 sm:pb-12">
+    <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+      {products.slice(0, 8).map((product: any) => (
+        <ProductCard key={product.id} product={product as ProductListItem} />
+      ))}
+    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <div className="min-h-screen bg-[var(--gray-100)] pb-8 sm:pb-12">
       {/* Hero Section */}
       <section className="bg-white">
         <Container>
-          <div className="grid items-center gap-6 py-6 lg:grid-cols-2 lg:gap-8 lg:py-10">
+          <div className="grid items-center gap-6 py-8 lg:grid-cols-2 lg:gap-12 lg:py-12">
             {/* Text Content */}
-            <div className="order-2 lg:order-1 px-2 sm:px-0">
-              <span className="inline-flex items-center rounded-full bg-[#dbeafe] px-2.5 py-1 text-[11px] font-bold tracking-wider text-[#1d4ed8] sm:px-3 sm:text-xs">
+            <div className="order-2 lg:order-1">
+              <span className="inline-flex items-center rounded-full bg-[var(--primary-100)] px-3 py-1 text-xs font-bold tracking-wider text-[var(--primary-700)]">
                 NUEVA COLECCIÓN 2024
               </span>
 
-              <h1 className="mt-3 text-2xl font-extrabold leading-tight text-[#0f172a] sm:text-3xl sm:mt-4 md:text-4xl lg:text-5xl">
+              <h1 className="mt-4 text-3xl font-extrabold leading-tight text-[var(--gray-900)] sm:text-4xl lg:text-5xl">
                 Muebles para
-                <span className="block text-[#1d4ed8]">tu hogar</span>
+                <span className="block text-[var(--primary-600)]">tu hogar</span>
               </h1>
 
-              <p className="mt-3 text-sm leading-relaxed text-[#475569] sm:text-base sm:mt-4 md:text-lg lg:max-w-xl">
+              <p className="mt-4 text-base leading-relaxed text-[var(--gray-600)] lg:text-lg lg:max-w-xl">
                 Descubrí piezas únicas de alta gama para transformar cada rincón de tu casa. Calidad y diseño en un solo lugar.
               </p>
 
               {/* CTA Buttons */}
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3 sm:mt-6">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/productos"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1d4ed8] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1d4ed8]/25 transition-all hover:bg-[#1e40af] active:scale-95 sm:px-6 sm:py-3 sm:text-base"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary-600)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--primary-600)]/25 transition-all hover:bg-[var(--primary-700)] active:scale-95"
                 >
                   Explorar catálogo
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/productos?ofertas=true"
-                  className="inline-flex items-center justify-center rounded-xl border border-[#cbd5e1] bg-[#f1f5f9] px-4 py-2.5 text-sm font-semibold text-[#1e293b] transition-colors hover:bg-[#e2e8f0] active:scale-95 sm:px-6 sm:py-3 sm:text-base"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--gray-300)] bg-[var(--gray-100)] px-6 py-3 text-sm font-semibold text-[var(--gray-800)] transition-colors hover:bg-[var(--gray-200)] active:scale-95"
                 >
                   Ver ofertas
                 </Link>
               </div>
 
-              {/* Stats - Mobile: Horizontal scroll */}
-              <div className="mt-5 flex gap-4 overflow-x-auto pb-2 border-t border-[#e2e8f0] pt-4 sm:mt-6 sm:gap-8 sm:overflow-visible sm:pb-0">
-                <div className="flex-shrink-0">
-                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">12k+</p>
-                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Clientes</p>
+              {/* Stats */}
+              <div className="mt-8 flex gap-8 border-t border-[var(--gray-200)] pt-6">
+                <div>
+                  <p className="text-2xl font-extrabold text-[var(--gray-900)] sm:text-3xl">12k+</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[var(--gray-500)]">Clientes</p>
                 </div>
-                <div className="flex-shrink-0">
-                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">4.9/5</p>
-                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Valoración</p>
+                <div>
+                  <p className="text-2xl font-extrabold text-[var(--gray-900)] sm:text-3xl">4.9/5</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[var(--gray-500)]">Valoración</p>
                 </div>
-                <div className="flex-shrink-0">
-                  <p className="text-2xl font-extrabold text-[#0f172a] sm:text-3xl">24h</p>
-                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748b] sm:text-xs">Envío express</p>
+                <div>
+                  <p className="text-2xl font-extrabold text-[var(--gray-900)] sm:text-3xl">24h</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[var(--gray-500)]">Envío express</p>
                 </div>
               </div>
             </div>
 
             {/* Hero Image */}
             <div className="order-1 flex items-center justify-center lg:order-2">
-              <div className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[500px]">
-                <HeroImage
-                  src="/sofa-hero-cropped.png"
-                  alt="Sofá"
-                  fallbackSrc="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600"
-                  className="transform transition-transform duration-500 hover:scale-[1.02]"
+              <div className="w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[480px]">
+                <img
+                  src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600"
+                  alt="Sofá moderno"
+                  className="w-full h-auto rounded-2xl shadow-2xl"
                 />
               </div>
             </div>
@@ -223,21 +235,21 @@ export default async function Home() {
         </Container>
       </section>
 
-      {/* Benefits Bar - Mobile optimized */}
-      <section className="border-b border-[#e2e8f0] bg-white">
+      {/* Benefits Bar */}
+      <section className="border-b border-[var(--gray-200)] bg-white">
         <Container>
           <div className="flex overflow-x-auto py-3 gap-4 sm:gap-0 sm:py-4 sm:justify-around">
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Truck className="h-4 w-4 text-[#16a34a] sm:h-5 sm:w-5" />
-              <span className="text-xs font-medium text-[#334155] sm:text-sm">Envío gratis</span>
+              <Truck className="h-4 w-4 text-[var(--success-600)] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[var(--gray-700)] sm:text-sm">Envío gratis</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Shield className="h-4 w-4 text-[#2563eb] sm:h-5 sm:w-5" />
-              <span className="text-xs font-medium text-[#334155] sm:text-sm">Garantía 12 meses</span>
+              <Shield className="h-4 w-4 text-[var(--primary-600)] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[var(--gray-700)] sm:text-sm">Garantía 12 meses</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Clock className="h-4 w-4 text-[#f97316] sm:h-5 sm:w-5" />
-              <span className="text-xs font-medium text-[#334155] sm:text-sm">Entrega 24-48hs</span>
+              <Clock className="h-4 w-4 text-[var(--warning-500)] sm:h-5 sm:w-5" />
+              <span className="text-xs font-medium text-[var(--gray-700)] sm:text-sm">Entrega 24-48hs</span>
             </div>
           </div>
         </Container>
@@ -246,10 +258,10 @@ export default async function Home() {
       {/* Rooms Section */}
       <section className="mt-4 sm:mt-6">
         <Container>
-          <div className="rounded-xl border border-[#e2e8f0]/60 bg-white p-3 shadow-sm sm:p-5">
+          <div className="rounded-xl border border-[var(--gray-200)] bg-white p-3 shadow-sm sm:p-5">
             <div className="mb-3 flex items-center justify-between sm:mb-4">
-              <h2 className="text-sm font-semibold text-[#0f172a] sm:text-lg">Explorá por ambientes</h2>
-              <Link href="/productos" className="text-xs font-medium text-[#2563eb] hover:underline sm:text-sm">
+              <h2 className="text-sm font-semibold text-[var(--gray-900)] sm:text-lg">Explorá por ambientes</h2>
+              <Link href="/productos" className="text-xs font-medium text-[var(--primary-600)] hover:underline sm:text-sm">
                 Ver todos
               </Link>
             </div>
@@ -259,7 +271,7 @@ export default async function Home() {
                 <Link
                   key={room.href}
                   href={room.href}
-                  className="group overflow-hidden rounded-lg border border-[#e2e8f0]"
+                  className="group overflow-hidden rounded-lg border border-[var(--gray-200)]"
                 >
                   <div className="relative aspect-[16/10]">
                     <img
@@ -281,25 +293,23 @@ export default async function Home() {
         </Container>
       </section>
 
-      {/* Products Section */}
+      {/* Products Section with Suspense */}
       <section className="mt-4 sm:mt-6">
         <Container>
-          <div className="rounded-xl border border-[#e2e8f0]/60 bg-white p-3 shadow-sm sm:p-5">
-            <div className="mb-3 flex items-center justify-between border-b border-[#e2e8f0] pb-3 sm:mb-4 sm:pb-4">
-              <h2 className="text-base font-semibold text-[#0f172a] sm:text-xl">Productos destacados</h2>
-              <Link 
-                href="/productos" 
-                className="text-xs font-medium text-[#2563eb] hover:underline sm:text-sm"
+          <div className="rounded-xl border border-[var(--gray-200)] bg-white p-3 shadow-sm sm:p-5">
+            <div className="mb-3 flex items-center justify-between border-b border-[var(--gray-200)] pb-3 sm:mb-4 sm:pb-4">
+              <h2 className="text-base font-semibold text-[var(--gray-900)] sm:text-xl">Productos destacados</h2>
+              <Link
+                href="/productos"
+                className="text-xs font-medium text-[var(--primary-600)] hover:underline sm:text-sm"
               >
                 Ver más
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {products.slice(0, 8).map((product: Product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            <Suspense fallback={<ProductGridSkeleton count={8} />}>
+              <ProductsSection />
+            </Suspense>
           </div>
         </Container>
       </section>

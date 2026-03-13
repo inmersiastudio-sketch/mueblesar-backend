@@ -12,6 +12,10 @@ export interface CatalogProduct {
   slug: string;
   description: string | null;
   price: number;
+  originalPrice: number;
+  hasDiscount: boolean;
+  discountPercentage: number;
+  currency: string;
   category: string | null;
   room: string | null;
   style: string | null;
@@ -37,7 +41,6 @@ export interface CatalogStore {
   logoUrl: string | null;
   description: string | null;
   whatsapp: string | null;
-  whatsappNumber: string | null;
   phone: string | null;
   email: string | null;
   website: string | null;
@@ -126,12 +129,9 @@ export class CatalogService {
       throw Errors.forbidden('Store is not active');
     }
 
-    // Construir where para productos
     const where: any = {
       storeId: store.id,
-      inStock: true,
-      // No mostrar productos sin precio o desactivados
-      price: { gt: 0 },
+      isActive: true,
     };
 
     if (filters.category) {
@@ -147,16 +147,20 @@ export class CatalogService {
     }
 
     if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
-      where.price = {};
-      if (filters.priceMin !== undefined) where.price.gte = filters.priceMin;
-      if (filters.priceMax !== undefined) where.price.lte = filters.priceMax;
+      where.variants = {
+        some: {
+          salePrice: {
+            gte: filters.priceMin || 0,
+            lte: filters.priceMax || 9999999,
+          }
+        }
+      };
     }
 
     if (filters.arOnly) {
-      where.OR = [
-        { glbUrl: { not: null } },
-        { usdzUrl: { not: null } },
-      ];
+      where.media = {
+        some: { type: 'MODEL_3D' }
+      };
     }
 
     if (filters.search) {
@@ -173,9 +177,9 @@ export class CatalogService {
     // Construir orderBy
     const orderBy: any = [];
     if (filters.sort === 'price') {
-      orderBy.push({ price: filters.direction || 'asc' });
+      orderBy.push({ variants: { _min: { salePrice: filters.direction || 'asc' } } });
     } else {
-      orderBy.push({ featured: 'desc' });
+      orderBy.push({ isFeatured: 'desc' });
       orderBy.push({ createdAt: filters.direction || 'desc' });
     }
 
@@ -186,10 +190,16 @@ export class CatalogService {
       take: pageSize,
       orderBy,
       include: {
-        images: {
-          select: { url: true, altText: true, position: true },
-          orderBy: { position: 'asc' },
+        media: {
+          where: { type: 'IMAGE' },
+          orderBy: { sortOrder: 'asc' },
         },
+        variants: {
+          where: { isDefault: true },
+          take: 1,
+        },
+        pricing: true,
+        inventory: true,
       },
     }) as any[];
 
@@ -234,14 +244,18 @@ export class CatalogService {
       where: {
         storeId: store.id,
         slug: productSlug,
-        inStock: true,
-        price: { gt: 0 },
+        isActive: true,
       },
       include: {
-        images: {
-          select: { url: true, altText: true, position: true },
-          orderBy: { position: 'asc' },
+        media: {
+          orderBy: { sortOrder: 'asc' },
         },
+        variants: {
+          where: { isDefault: true },
+          take: 1,
+        },
+        pricing: true,
+        inventory: true,
       },
     }) as any;
 
@@ -255,16 +269,20 @@ export class CatalogService {
         storeId: store.id,
         category: product.category,
         id: { not: product.id },
-        inStock: true,
-        price: { gt: 0 },
+        inventory: { availableStock: { gt: 0 } },
       },
       take: 4,
-      orderBy: { featured: 'desc' },
+      orderBy: { isFeatured: 'desc' },
       include: {
-        images: {
-          select: { url: true, altText: true, position: true },
+        media: {
+          where: { type: 'IMAGE', isPrimary: true },
           take: 1,
         },
+        variants: {
+          where: { isDefault: true },
+          take: 1,
+        },
+        pricing: true,
       },
     }) as any[];
 
@@ -303,7 +321,6 @@ export class CatalogService {
       logoUrl: store.logoUrl,
       description: store.description,
       whatsapp: store.whatsapp,
-      whatsappNumber: store.whatsappNumber,
       phone: store.phone,
       email: store.email,
       website: store.website,
@@ -320,30 +337,51 @@ export class CatalogService {
    * Mapear Product a formato de catálogo
    */
   private mapProductToCatalog(product: any): CatalogProduct {
-    const mainImage = product.images?.[0]?.url || product.imageUrl;
+    const mainImage = product.media?.find((m: any) => m.isPrimary)?.url || product.media?.[0]?.url || null;
+    const defaultVariant = product.variants?.[0];
+    
+    // Calcular precios
+    const listPrice = defaultVariant?.listPrice || product.pricing?.listPrice || 0;
+    const salePrice = defaultVariant?.salePrice || product.pricing?.salePrice || 0;
+    const hasDiscount = listPrice > salePrice && listPrice > 0;
+    const discountPercentage = hasDiscount 
+      ? Math.round((1 - salePrice / listPrice) * 100)
+      : 0;
+
+    // Parse dimensions (it's JSON)
+    const dimensions = product.dimensions || {};
+    const materials = product.materials || {};
 
     return {
       id: product.id,
       name: product.name,
       slug: product.slug,
       description: product.description,
-      price: Number(product.price),
+      price: Number(salePrice),
+      originalPrice: Number(listPrice),
+      hasDiscount,
+      discountPercentage,
+      currency: defaultVariant?.currency || product.pricing?.currency || 'ARS',
       category: product.category,
       room: product.room,
       style: product.style,
-      widthCm: product.widthCm ? Number(product.widthCm) : null,
-      heightCm: product.heightCm ? Number(product.heightCm) : null,
-      depthCm: product.depthCm ? Number(product.depthCm) : null,
-      weightKg: product.weightKg ? Number(product.weightKg) : null,
-      material: product.material,
-      color: product.color,
-      inStock: product.inStock,
-      stockQty: product.stockQty,
-      featured: product.featured,
+      widthCm: dimensions?.widthCm ? Number(dimensions.widthCm) : null,
+      heightCm: dimensions?.heightCm ? Number(dimensions.heightCm) : null,
+      depthCm: dimensions?.depthCm ? Number(dimensions.depthCm) : null,
+      weightKg: dimensions?.weightKg ? Number(dimensions.weightKg) : null,
+      material: materials?.primary || null,
+      color: defaultVariant?.color || null,
+      inStock: (product.inventory?.availableStock || 0) > 0,
+      stockQty: product.inventory?.availableStock || 0,
+      featured: product.isFeatured || false,
       imageUrl: mainImage,
-      glbUrl: product.glbUrl,
-      usdzUrl: product.usdzUrl,
-      images: product.images || [],
+      glbUrl: product.media?.find((m: any) => m.type === 'MODEL_3D' && m.mediaFormat === 'GLB')?.url || null,
+      usdzUrl: product.media?.find((m: any) => m.type === 'MODEL_3D' && m.mediaFormat === 'USDZ')?.url || null,
+      images: product.media?.filter((m: any) => m.type === 'IMAGE').map((m: any, idx: number) => ({
+        url: m.url,
+        altText: m.alt,
+        position: m.sortOrder || idx
+      })) || [],
     };
   }
 }

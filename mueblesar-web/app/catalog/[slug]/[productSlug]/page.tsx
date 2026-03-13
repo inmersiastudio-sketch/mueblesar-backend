@@ -7,6 +7,7 @@ import { Container } from "@/app/components/layout/Container";
 import { ColorImageCarousel } from "@/app/components/media/ColorImageCarousel";
 import { ARPreview } from "@/app/components/products/ARPreview";
 import { ProductInfoTabs } from "@/app/components/products/ProductInfoTabs";
+import { StickyAddToCart } from "@/app/components/products/StickyAddToCart";
 import { Button } from "@/app/components/ui/Button";
 
 interface Props {
@@ -20,19 +21,21 @@ function formatPrice(value: number): string {
 // Generate metadata for SEO
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { slug, productSlug } = await params;
-    const product = await fetchCatalogProduct(slug, productSlug);
+    const response = await fetchCatalogProduct(slug, productSlug);
 
-    if (!product) {
+    if (!response) {
         return {
             title: "Producto no encontrado | Amobly",
         };
     }
 
+    const { store, product } = response;
+
     return {
-        title: `${product.name} | ${product.store.name}`,
+        title: `${product.name} | ${store.name}`,
         description: product.description || `Ver ${product.name} en Realidad Aumentada`,
         openGraph: {
-            title: `${product.name} | ${product.store.name}`,
+            title: `${product.name} | ${store.name}`,
             description: product.description || `Ver ${product.name} en Realidad Aumentada`,
             type: "website",
             images: product.images?.[0]?.url ? [product.images[0].url] : [],
@@ -48,14 +51,10 @@ export default async function CatalogProductPage({ params }: Props) {
         notFound();
     }
 
-    const { store, ...productData } = product;
+    const { store, product: productData, relatedProducts } = product;
 
-    const images =
-        productData.images && productData.images.length > 0
-            ? productData.images.map((img: { url: string }) => img.url)
-            : productData.imageUrl
-                ? [productData.imageUrl]
-                : [];
+    const images = productData.images?.map(img => img.url) || 
+                   (productData.imageUrl ? [productData.imageUrl] : []);
 
     const arModelUrl = productData.glbUrl || productData.arUrl;
     const usdzUrl = productData.usdzUrl;
@@ -149,7 +148,7 @@ export default async function CatalogProductPage({ params }: Props) {
                             />
 
                             {/* CTA Buttons */}
-                            <div className="space-y-3 pt-4 border-t border-slate-200">
+                            <div id="product-main-actions" className="space-y-3 pt-4 border-t border-slate-200">
                                 {/* WhatsApp Contact */}
                                 {waLink ? (
                                     <a 
@@ -233,18 +232,28 @@ export default async function CatalogProductPage({ params }: Props) {
                 </Container>
             </footer>
 
-            {/* Floating Contact Button - Mobile */}
-            {waLink && (
-                <a
-                    href={waLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white p-4 rounded-full shadow-lg transition hover:bg-slate-800 md:hidden"
-                    aria-label="Contactar por WhatsApp"
-                >
-                    <MessageCircle size={24} />
-                </a>
-            )}
+            {/* Sticky Add to Cart - Mobile Only */}
+            <StickyAddToCart
+                product={{
+                    id: productData.id,
+                    slug: productData.slug,
+                    name: productData.name,
+                    price: productData.price,
+                    imageUrl: images[0],
+                    storeName: store.name,
+                    storeSlug: slug,
+                    storeWhatsapp: store.whatsapp,
+                }}
+                arData={arModelUrl ? {
+                    arUrl: productData.arUrl ?? undefined,
+                    glbUrl: productData.glbUrl ?? undefined,
+                    usdzUrl: productData.usdzUrl ?? undefined,
+                    widthCm: productData.widthCm ?? undefined,
+                    depthCm: productData.depthCm ?? undefined,
+                    heightCm: productData.heightCm ?? undefined,
+                } : undefined}
+                disabled={!productData.inStock}
+            />
         </div>
     );
 }

@@ -1,95 +1,81 @@
 "use client";
 
 import Link from "next/link";
+import { Heart, Box, Truck } from "lucide-react";
 import { FavoriteButton } from "../favorites/FavoriteButton";
 import { AddToCartButton } from "../cart/AddToCartButton";
-
-export type ProductCardData = {
-  id: number;
-  slug: string;
-  name: string;
-  price: number;
-  description?: string | null;
-  category?: string | null;
-  room?: string | null;
-  style?: string | null;
-  imageUrl?: string | null;
-  arUrl?: string | null;
-  images?: { id?: number; url: string; type?: string | null }[];
-  store?: { id?: number; name?: string | null; slug?: string | null };
-  color?: string | null;
-  inStock?: boolean;
-  stockQty?: number | null;
-  featured?: boolean;
-  widthCm?: number | null;
-  heightCm?: number | null;
-  depthCm?: number | null;
-};
+import type { ProductListItem } from "@/types";
 
 type Props = {
-  product: ProductCardData;
+  product: ProductListItem;
 };
 
 export function ProductCard({ product }: Props) {
-  const image = product.images?.[0]?.url ?? product.imageUrl;
-  const price = typeof product.price === "string" ? Number(product.price) : product.price;
-  
-  // Mock data para el diseño tipo MercadoLibre
-  const originalPrice = Math.round(price * 1.74);
-  const discount = 74;
-  const cuota = Math.round(price / 6);
+  const hasDiscount = product.hasDiscount && product.discountPercentage && product.discountPercentage > 0;
 
   return (
-    <article className="group overflow-hidden rounded-lg border border-[#e2e8f0] bg-white transition-all duration-200 hover:shadow-md sm:rounded-xl">
+    <article className="group relative flex flex-col bg-white rounded-2xl border border-[var(--gray-200)] overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
       {/* Image Container */}
-      <div className="relative aspect-[4/3] bg-[#f8fafc]">
+      <div className="relative aspect-square bg-gradient-to-br from-[var(--gray-50)] to-white overflow-hidden">
         <Link href={`/productos/${product.slug}`} className="block w-full h-full">
-          {image ? (
-            <img
-              src={image}
-              alt={product.name}
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-contain p-2 sm:p-4"
-            />
+          {product.imageUrl ? (
+            <>
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </>
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-[#94a3b8] sm:text-sm">
-              Sin imagen
+            <div className="flex h-full items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
+                <Box className="w-8 h-8 text-[var(--gray-300)]" />
+              </div>
             </div>
           )}
         </Link>
 
-        {/* Badge */}
-        <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2">
-          <span className="rounded bg-[#dbeafe] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#1d4ed8] sm:rounded-md sm:px-2.5 sm:py-1 sm:text-[10px]">
-            OFERTA
-          </span>
-        </div>
+        {/* Badge de descuento */}
+        {hasDiscount && (
+          <div className="absolute top-3 left-3">
+            <span className="bg-[var(--error-500)] text-white px-2 py-1 rounded-lg text-[10px] font-bold">
+              -{product.discountPercentage}%
+            </span>
+          </div>
+        )}
+
+        {/* Badge de envío gratis */}
+        {product.price > 50000 && (
+          <div className="absolute top-3 right-12">
+            <span className="inline-flex items-center gap-1 bg-[var(--success-600)] text-white px-2 py-1 rounded-lg text-[10px] font-semibold">
+              <Truck className="w-3 h-3" />
+              Gratis
+            </span>
+          </div>
+        )}
 
         {/* Favorite Button */}
-        <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2">
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <FavoriteButton
             product={{
               id: product.id,
               slug: product.slug,
               name: product.name,
-              price: price ?? 0,
-              imageUrl: image,
-              category: product.category,
-              room: product.room,
-              style: product.style,
-              description: product.description,
-              storeName: product.store?.name,
-              storeSlug: product.store?.slug,
+              price: product.price,
+              imageUrl: product.imageUrl,
             }}
             size="sm"
+            className="!bg-white/95 !backdrop-blur-sm !shadow-md hover:!scale-110 transition-transform"
           />
         </div>
 
         {/* Out of Stock */}
-        {product.inStock === false && (
-          <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-            <span className="bg-[#333333] text-white text-[10px] font-semibold px-2 py-0.5 rounded sm:text-xs sm:px-3">
+        {!product.inStock && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="bg-[var(--gray-800)] text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
               Agotado
             </span>
           </div>
@@ -97,53 +83,58 @@ export function ProductCard({ product }: Props) {
       </div>
 
       {/* Product Info */}
-      <div className="bg-white p-2 sm:p-3.5">
+      <div className="flex flex-col flex-1 p-3 sm:p-4">
+        {/* Store */}
+        {product.store?.name && (
+          <p className="text-[10px] sm:text-[11px] text-[var(--gray-400)] uppercase tracking-wide mb-1 truncate">
+            {product.store.name}
+          </p>
+        )}
+
         {/* Title */}
         <Link href={`/productos/${product.slug}`}>
-          <h3 className="line-clamp-2 text-[11px] font-medium leading-snug text-[#0f172a] min-h-[32px] transition-colors hover:text-[#2563eb] sm:text-[13px] sm:min-h-[36px]">
+          <h3 className="text-sm sm:text-[15px] font-medium text-[var(--gray-900)] leading-snug line-clamp-2 mb-2 group-hover:text-[var(--primary-600)] transition-colors">
             {product.name}
           </h3>
         </Link>
 
-        {/* Original Price */}
-        <p className="mt-1 text-[10px] text-[#94a3b8] line-through sm:mt-2 sm:text-[11px]">
-          ${originalPrice.toLocaleString("es-AR")}
-        </p>
+        {/* Category */}
+        <p className="text-[10px] text-[var(--gray-400)] mb-2">{product.category}</p>
 
-        {/* Price + OFF */}
-        <div className="mt-0.5 flex items-end gap-1 sm:gap-1.5">
-          <span className="text-lg leading-none font-semibold text-[#0f172a] sm:text-[24px] md:text-[28px]">
-            ${price?.toLocaleString("es-AR")}
-          </span>
-          <span className="text-[9px] font-semibold text-[#16a34a] mb-0.5 sm:text-[11px]">
-            {discount}% OFF
-          </span>
-        </div>
+        {/* Price Section */}
+        <div className="mt-auto pt-2">
+          {/* Precio original tachado */}
+          {hasDiscount && product.originalPrice && (
+            <p className="text-[11px] text-[var(--gray-400)] line-through">
+              ${product.originalPrice.toLocaleString("es-AR")}
+            </p>
+          )}
 
-        {/* Cuotas */}
-        <p className="mt-1 text-[10px] text-[#334155] sm:text-[13px]">
-          6 cuotas de ${cuota.toLocaleString("es-AR")}
-        </p>
+          {/* Precio actual */}
+          <div className="flex items-baseline gap-1.5 mb-2">
+            <span className="text-lg sm:text-xl font-bold text-[var(--gray-900)]">
+              ${product.price.toLocaleString("es-AR")}
+            </span>
+            {product.price > 50000 && (
+              <span className="text-[10px] text-[var(--success-600)] font-medium">
+                Envío gratis
+              </span>
+            )}
+          </div>
 
-        {/* Envío */}
-        <p className="text-[10px] font-semibold text-[#16a34a] sm:text-[13px]">
-          Llega gratis mañana
-        </p>
-
-        {/* Add to Cart Button */}
-        <div className="mt-2 border-t border-[#e2e8f0] pt-2 sm:mt-3 sm:pt-3">
+          {/* Add to Cart */}
           <AddToCartButton
             product={{
               id: product.id,
               slug: product.slug,
               name: product.name,
-              price: price ?? 0,
-              imageUrl: image ?? null,
-              storeName: product.store?.name ?? "Sin tienda",
-              storeSlug: product.store?.slug ?? "",
+              price: product.price,
+              imageUrl: product.imageUrl || null,
+              storeName: product.store?.name || "Sin tienda",
+              storeSlug: product.store?.slug || "",
               storeWhatsapp: null,
             }}
-            className="w-full !rounded-md !bg-[#2563eb] !py-1.5 !text-[11px] !font-semibold !text-white hover:!bg-[#1d4ed8] sm:!rounded-lg sm:!py-2 sm:!text-[13px]"
+            className="w-full !h-8 !rounded-lg !bg-[var(--primary-600)] !text-white !text-xs !font-medium hover:!bg-[var(--primary-700)] active:!scale-[0.98] transition-all"
           />
         </div>
       </div>

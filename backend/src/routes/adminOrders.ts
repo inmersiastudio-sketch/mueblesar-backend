@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, AuthenticatedRequest } from "../lib/auth.js";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 const router = Router();
 
@@ -14,7 +14,7 @@ router.get("/", async (req, res) => {
     const user = (req as AuthenticatedRequest).user!;
     try {
         const where: any = {};
-        if (user.role === Role.STORE && user.storeId) {
+        if (user.role === UserRole.STORE_OWNER && user.storeId) {
             where.storeId = user.storeId;
         }
 
@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
             include: {
                 items: {
                     include: {
-                        product: { select: { name: true, slug: true, imageUrl: true } },
+                        product: { select: { name: true, slug: true, media: { select: { url: true }, take: 1 } } },
                     },
                 },
                 store: { select: { name: true } },
@@ -58,7 +58,7 @@ router.get("/", async (req, res) => {
 // GET /api/admin/orders/:id — single order detail
 router.get("/:id", async (req, res) => {
     const user = (req as AuthenticatedRequest).user!;
-    const id = Number(req.params.id);
+    const id = req.params.id;
     if (!id) return res.status(400).json({ error: "Invalid order ID" });
 
     try {
@@ -67,7 +67,7 @@ router.get("/:id", async (req, res) => {
             include: {
                 items: {
                     include: {
-                        product: { select: { name: true, slug: true, imageUrl: true } },
+                        product: { select: { name: true, slug: true, media: { select: { url: true }, take: 1 } } },
                     },
                 },
                 store: { select: { name: true } },
@@ -77,7 +77,7 @@ router.get("/:id", async (req, res) => {
         if (!order) return res.status(404).json({ error: "Order not found" });
 
         // Enforce store isolation
-        if (user.role === Role.STORE && user.storeId && order.storeId !== user.storeId) {
+        if (user.role === UserRole.STORE_OWNER && user.storeId && order.storeId !== user.storeId) {
             return res.status(403).json({ error: "Forbidden" });
         }
 
@@ -99,7 +99,7 @@ const updateSchema = z.object({
 
 router.put("/:id", async (req, res) => {
     const user = (req as AuthenticatedRequest).user!;
-    const id = Number(req.params.id);
+    const id = req.params.id;
     if (!id) return res.status(400).json({ error: "Invalid order ID" });
 
     const parsed = updateSchema.safeParse(req.body);
@@ -109,7 +109,7 @@ router.put("/:id", async (req, res) => {
         // Check ownership
         const existing = await prisma.order.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: "Order not found" });
-        if (user.role === Role.STORE && user.storeId && existing.storeId !== user.storeId) {
+        if (user.role === UserRole.STORE_OWNER && user.storeId && existing.storeId !== user.storeId) {
             return res.status(403).json({ error: "Forbidden" });
         }
 
@@ -119,7 +119,7 @@ router.put("/:id", async (req, res) => {
             include: {
                 items: {
                     include: {
-                        product: { select: { name: true, slug: true, imageUrl: true } },
+                        product: { select: { name: true, slug: true, media: { select: { url: true }, take: 1 } } },
                     },
                 },
                 store: { select: { name: true } },

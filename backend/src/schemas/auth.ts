@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Role } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 /**
  * Authentication & Authorization Zod Schemas
@@ -25,7 +25,7 @@ export const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   name: z.string().optional(),
   password: passwordSchema,
-  role: z.nativeEnum(Role).optional().default(Role.STORE),
+  role: z.nativeEnum(UserRole).optional().default(UserRole.STORE_OWNER),
   storeId: z.number().optional(),
 });
 

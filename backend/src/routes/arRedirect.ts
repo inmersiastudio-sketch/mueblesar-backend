@@ -15,23 +15,26 @@ const router = Router();
 // GET /api/short/ar/:productId - Redirect to AR viewer
 router.get("/:productId", asyncHandler(async (req, res) => {
   const productId = Number(req.params.productId);
-  
+
   if (Number.isNaN(productId)) {
     throw Errors.validation("Invalid product ID");
   }
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, name: true, arUrl: true, glbUrl: true, usdzUrl: true },
+    select: { id: true, name: true, media: { where: { type: 'MODEL_3D' } } },
   });
 
-  if (!product || (!product.glbUrl && !product.arUrl)) {
+  if (!product || product.media.length === 0) {
     throw Errors.notFound("Product or AR model");
   }
 
-  // Consolidate AR URLs - prefer glbUrl, fallback to arUrl during transition
-  const glbUrl = product.glbUrl || product.arUrl;
-  const usdzUrl = product.usdzUrl || null;
+  // Find glb and usdz from media array
+  const glbMedia = product.media.find(m => m.url.endsWith('.glb'));
+  const usdzMedia = product.media.find(m => m.url.endsWith('.usdz'));
+
+  const glbUrl = glbMedia?.url || product.media[0]?.url;
+  const usdzUrl = usdzMedia?.url || null;
 
   // Redirect to the AR page with clean params
   const siteUrl = env.SITE_URL || "http://localhost:3000";

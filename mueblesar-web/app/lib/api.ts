@@ -7,6 +7,9 @@ import type {
   ProductResponse,
   ProductFilters,
   StoreFilters,
+  CatalogStore,
+  CatalogProduct,
+  CatalogResponse,
 } from "@/types";
 
 // API base URL - MUST be configured in production
@@ -16,65 +19,10 @@ if (!API_BASE) {
   throw new Error("NEXT_PUBLIC_API_BASE_URL environment variable is required");
 }
 
-// ============ Catalog Types ============
+// ============ Re-exports de tipos de catálogo ============
+// Los tipos CatalogStore, CatalogProduct, etc. se importan desde @/types
 
-export type CatalogStore = {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-  whatsapp?: string | null;
-  whatsappNumber?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  city?: string | null;
-  province?: string | null;
-  logoUrl?: string | null;
-  website?: string | null;
-  socialInstagram?: string | null;
-  socialFacebook?: string | null;
-};
-
-export type CatalogProduct = {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-  price: number;
-  category?: string | null;
-  room?: string | null;
-  style?: string | null;
-  imageUrl?: string | null;
-  images?: { url: string; altText?: string | null; position?: number; type?: string | null }[];
-  arUrl?: string | null;
-  glbUrl?: string | null;
-  usdzUrl?: string | null;
-  widthCm?: number | null;
-  depthCm?: number | null;
-  heightCm?: number | null;
-  inStock?: boolean;
-  featured?: boolean;
-  material?: string | null;
-  color?: string | null;
-};
-
-export type CatalogPagination = {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
-
-export type CatalogResponse = {
-  store: CatalogStore;
-  products: CatalogProduct[];
-  pagination: CatalogPagination;
-};
-
-export type CatalogProductResponse = CatalogProduct & {
-  store: CatalogStore;
-};
+export type { CatalogStore, CatalogProduct, CatalogResponse };
 
 const buildQuery = (filters: ProductFilters): string => {
   const params = new URLSearchParams();
@@ -132,16 +80,14 @@ export async function fetchStoreBySlug(slug: string): Promise<StoreDetailRespons
   }
 }
 
-export async function fetchProductBySlug(slug: string): Promise<ProductResponse | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/products/${slug}`, { next: { revalidate: 0 } });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`Bad status ${res.status}`);
-    return res.json();
-  } catch (error) {
-    console.error(`Failed to fetch product ${slug}`, error);
-    return null;
-  }
+export async function fetchProductBySlug(slug: string) {
+  const res = await fetch(`${API_BASE}/api/products/${slug}`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) return null;
+
+  return res.json(); // Ya viene transformado del backend
 }
 
 // ============ Public Catalog API ============
@@ -194,7 +140,13 @@ export async function fetchCatalogBySlug(
   }
 }
 
-export async function fetchCatalogProduct(storeSlug: string, productSlug: string): Promise<CatalogProductResponse | null> {
+export type CatalogProductDetailResponse = {
+  store: CatalogStore;
+  product: CatalogProduct;
+  relatedProducts: CatalogProduct[];
+};
+
+export async function fetchCatalogProduct(storeSlug: string, productSlug: string): Promise<CatalogProductDetailResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/api/catalog/${storeSlug}/${productSlug}`, {
       next: { revalidate: 60 }

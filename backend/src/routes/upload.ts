@@ -4,7 +4,7 @@ import multer from "multer";
 import { requireRole } from "../lib/auth.js";
 import { uploadImage, uploadGLB } from "../lib/cloudinary.js";
 import { uploadGLBToS3 } from "../lib/s3.js";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 const router = Router();
 
@@ -17,7 +17,7 @@ const upload = multer({
 });
 
 // Upload image
-router.post("/image", requireRole([Role.ADMIN, Role.STORE]), upload.single("file"), async (req, res) => {
+router.post("/image", requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -32,7 +32,7 @@ router.post("/image", requireRole([Role.ADMIN, Role.STORE]), upload.single("file
 });
 
 // Upload GLB/USDZ model
-router.post("/model", requireRole([Role.ADMIN, Role.STORE]), upload.single("file"), async (req, res) => {
+router.post("/model", requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });

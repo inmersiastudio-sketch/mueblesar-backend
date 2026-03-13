@@ -1,4 +1,4 @@
-import { Role, Prisma } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { validateGlbScale } from '../lib/scaleValidator.js';
 import { Errors } from '../errors/AppError.js';
@@ -28,7 +28,7 @@ export class ProductService {
    * Check if store user has an assigned store
    */
   ensureStoreAccess(user: AuthContext): void {
-    if (user.role === Role.STORE && !user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && !user.storeId) {
       throw Errors.validation('Store user without store assigned');
     }
   }
@@ -37,7 +37,7 @@ export class ProductService {
    * Validate user has access to a product
    */
   async verifyProductAccess(productId: number, user: AuthContext): Promise<void> {
-    if (user.role === Role.STORE && user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId) {
       const product = await prisma.product.findUnique({
         where: { id: productId },
         select: { storeId: true },
@@ -167,7 +167,7 @@ export class ProductService {
     const { images, ...productData } = data;
 
     // Assign store for STORE role users
-    if (user.role === Role.STORE && user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId) {
       (productData as Record<string, unknown>).storeId = user.storeId;
     }
 
@@ -200,12 +200,11 @@ export class ProductService {
    * Create product images
    */
   async createProductImages(productId: number, images: ProductImageInput[]): Promise<void> {
-    await prisma.productImage.createMany({
+    await prisma.productMedia.createMany({
       data: images.map((img) => ({
         productId,
         url: img.url,
-        type: img.type || undefined,
-        position: undefined,
+        type: 'IMAGE', // assuming images are IMAGE
       })),
     });
   }
@@ -215,13 +214,12 @@ export class ProductService {
    */
   async updateProductImages(productId: number, images: ProductImageInput[]): Promise<void> {
     await prisma.$transaction([
-      prisma.productImage.deleteMany({ where: { productId } }),
-      prisma.productImage.createMany({
+      prisma.productMedia.deleteMany({ where: { productId, type: 'IMAGE' } }),
+      prisma.productMedia.createMany({
         data: images.map((img) => ({
           productId,
           url: img.url,
-          type: img.type || undefined,
-          position: undefined,
+          type: 'IMAGE',
         })),
       }),
     ]);
@@ -242,7 +240,7 @@ export class ProductService {
     const { images, ...productData } = data;
 
     // Assign store for STORE role users
-    if (user.role === Role.STORE && user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId) {
       (productData as Record<string, unknown>).storeId = user.storeId;
     }
 
@@ -280,7 +278,7 @@ export class ProductService {
       if (images.length > 0) {
         await this.updateProductImages(productId, images);
       } else {
-        await prisma.productImage.deleteMany({ where: { productId } });
+        await prisma.productMedia.deleteMany({ where: { productId, type: 'IMAGE' } });
       }
     }
 
@@ -298,9 +296,8 @@ export class ProductService {
 
     // Delete related records in transaction
     await prisma.$transaction([
-      prisma.productImage.deleteMany({ where: { productId } }),
+      prisma.productMedia.deleteMany({ where: { productId } }),
       prisma.orderItem.deleteMany({ where: { productId } }),
-      prisma.arView.deleteMany({ where: { productId } }),
       prisma.product.delete({ where: { id: productId } }),
     ]);
 
@@ -357,7 +354,7 @@ export class ProductService {
   ): Promise<void> {
     const { images, ...productData } = data;
 
-    if (user.role === Role.STORE && user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId) {
       (productData as Record<string, unknown>).storeId = user.storeId;
     }
 
@@ -366,11 +363,11 @@ export class ProductService {
     });
 
     if (images && images.length > 0) {
-      await tx.productImage.createMany({
+      await tx.productMedia.createMany({
         data: images.map((img) => ({
           productId: product.id,
           url: img.url,
-          type: img.type || undefined,
+          type: 'IMAGE',
         })),
       });
     }
@@ -396,7 +393,7 @@ export class ProductService {
   ): Promise<void> {
     const { id: productId, images, ...productData } = data;
 
-    if (user.role === Role.STORE && user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && user.storeId) {
       const existing = await tx.product.findUnique({
         where: { id: productId },
         select: { storeId: true },
@@ -415,13 +412,13 @@ export class ProductService {
     });
 
     if (images) {
-      await tx.productImage.deleteMany({ where: { productId } });
+      await tx.productMedia.deleteMany({ where: { productId, type: 'IMAGE' } });
       if (images.length > 0) {
-        await tx.productImage.createMany({
+        await tx.productMedia.createMany({
           data: images.map((img) => ({
             productId,
             url: img.url,
-            type: img.type || undefined,
+            type: 'IMAGE',
           })),
         });
       }
@@ -500,7 +497,7 @@ export class ProductService {
    * List products for user
    */
   async listProducts(user: AuthContext): Promise<unknown[]> {
-    const where = user.role === Role.STORE && user.storeId
+    const where = user.role === UserRole.STORE_OWNER && user.storeId
       ? { storeId: user.storeId }
       : undefined;
 
@@ -508,14 +505,14 @@ export class ProductService {
       where,
       include: {
         store: true,
-        images: { select: { url: true, position: true, type: true } },
+        media: { select: { url: true, isPrimary: true, sortOrder: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return items.map((p) => ({
       ...p,
-      imageUrl: p.imageUrl ?? p.images.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))[0]?.url ?? null,
+      imageUrl: p.media.find(m => m.isPrimary)?.url ?? p.media.sort((a, b) => a.sortOrder - b.sortOrder)[0]?.url ?? null,
     }));
   }
 }

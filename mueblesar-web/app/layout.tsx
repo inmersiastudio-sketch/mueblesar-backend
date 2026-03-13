@@ -23,12 +23,25 @@ export const metadata: Metadata = {
     icon: "/icon.png",
     apple: "/icon.png",
   },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover",
+  },
+  themeColor: "#ffffff",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Amobly",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${robotoMono.variable} bg-[#ededed] text-[#333333] antialiased`}>
+      <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <ClientProviders>
           <PublicWrapper>{children}</PublicWrapper>
         </ClientProviders>

@@ -1,4 +1,4 @@
-import type { Role } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 /**
  * Product Type Definitions
@@ -6,7 +6,7 @@ import type { Role } from '@prisma/client';
 
 export interface AuthContext {
   id: number;
-  role: Role;
+  role: UserRole;
   storeId?: number | null;
 }
 

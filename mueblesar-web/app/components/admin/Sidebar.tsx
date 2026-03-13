@@ -18,6 +18,7 @@ import {
     Menu,
     X,
     CreditCard,
+    MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -42,6 +43,7 @@ const adminOnlyLinks: NavItem[] = [
 
 const mainLinks: NavItem[] = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Consultas", href: "/admin/inquiries", icon: MessageSquare },
     { name: "Pedidos", href: "/admin/orders", icon: ShoppingCart },
     { name: "Inventario", href: "/admin/inventory", icon: Package },
     { name: "Modelos AR", href: "/admin/media", icon: Box },

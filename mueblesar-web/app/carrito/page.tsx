@@ -3,41 +3,33 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "../context/CartContext";
+import { useToast } from "../context/ToastContext";
 import { Container } from "../components/layout/Container";
 import { Button } from "../components/ui/Button";
+import { EmptyCart } from "../components/ui/EmptyState";
 import { getCartTotal, groupCartByStore, generateWhatsAppMessage } from "../lib/cart";
 
 export default function CartPage() {
   const { items, removeItem, updateItemQuantity, clearItems } = useCart();
+  const { success, info } = useToast();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleRemoveItem = (itemId: number, itemName: string) => {
+    removeItem(itemId);
+    info(`${itemName} eliminado del carrito`);
+  };
+
+  const handleClearCart = () => {
+    clearItems();
+    setShowClearConfirm(false);
+    success("Carrito vaciado correctamente");
+  };
 
   if (items.length === 0) {
     return (
-      <div className="py-20">
+      <div className="py-12 md:py-20">
         <Container>
-          <div className="flex flex-col items-center justify-center gap-6 text-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-24 w-24 text-gray-300"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-              />
-            </svg>
-            <h1 className="text-3xl font-bold text-gray-900">Tu carrito está vacío</h1>
-            <p className="text-gray-600 max-w-md">
-              No hay productos en tu carrito. Explorá nuestro catálogo y agregá los muebles que te gusten.
-            </p>
-            <Link href="/productos">
-              <Button>Ver productos</Button>
-            </Link>
-          </div>
+          <EmptyCart />
         </Container>
       </div>
     );
@@ -58,10 +50,7 @@ export default function CartPage() {
     window.open(url, "_blank");
   };
 
-  const handleClearCart = () => {
-    clearItems();
-    setShowClearConfirm(false);
-  };
+
 
   return (
     <div className="py-10">
@@ -82,7 +71,7 @@ export default function CartPage() {
                 className="flex gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
               >
                 {item.imageUrl && (
-                  <Link href={`/producto/${item.slug}`}>
+                  <Link href={`/productos/${item.slug}`}>
                     <img
                       src={item.imageUrl}
                       alt={item.name}
@@ -93,12 +82,12 @@ export default function CartPage() {
                 
                 <div className="flex flex-1 flex-col justify-between">
                   <div>
-                    <Link href={`/producto/${item.slug}`}>
+                    <Link href={`/productos/${item.slug}`}>
                       <h3 className="font-semibold text-gray-900 hover:text-primary">
                         {item.name}
                       </h3>
                     </Link>
-                    <Link href={`/muebleria/${item.storeSlug}`}>
+                    <Link href={`/catalog/${item.storeSlug}`}>
                       <p className="text-sm text-gray-600 hover:text-primary">
                         {item.storeName}
                       </p>
@@ -128,7 +117,7 @@ export default function CartPage() {
                     </div>
 
                     <button
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => handleRemoveItem(item.id, item.name)}
                       className="text-sm text-red-600 hover:text-red-800 hover:underline ml-auto"
                     >
                       Eliminar

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validateGlbScale } from "../lib/scaleValidator.js";
 import { requireAuth, requireRole } from "../lib/auth.js";
-import { Role } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 const router = Router();
 
@@ -49,7 +49,7 @@ function computeSuggestion(
   return { dimension: picked, factor, projectedSizeCm, projectedDiffs };
 }
 
-router.post("/validate-scale", requireAuth, requireRole([Role.ADMIN, Role.STORE]), async (req, res) => {
+router.post("/validate-scale", requireAuth, requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]), async (req, res) => {
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Payload inválido", details: parsed.error.flatten() });

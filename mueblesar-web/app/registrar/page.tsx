@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useToast } from "../context/ToastContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function RegistrarPage() {
   const router = useRouter();
+  const { success, error: showError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -62,14 +64,17 @@ export default function RegistrarPage() {
 
       if (!res.ok) {
         setError(data.error || "Error al registrar la mueblería");
+        showError(data.error || "Error al registrar la mueblería");
         setLoading(false);
         return;
       }
 
+      success("¡Registro exitoso! Verificá tu email para continuar.");
       // Redirect to email verification page
       router.push(`/verificar-email?email=${encodeURIComponent(formData.email)}`);
     } catch {
       setError("Error de conexión. Intentá nuevamente.");
+      showError("Error de conexión. Intentá nuevamente.");
       setLoading(false);
     }
   };

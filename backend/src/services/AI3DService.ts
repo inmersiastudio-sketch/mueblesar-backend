@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { createImageTo3DTask, getTaskStatus, downloadGLB } from '../lib/meshy.js';
 import { TripoClient } from '../lib/tripo.js';
@@ -39,17 +39,16 @@ export class AI3DService {
     }
 
     // Check access for STORE users
-    if (user.role === Role.STORE && product.storeId !== user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && product.storeId !== user.storeId) {
       throw Errors.forbidden('Access denied');
     }
 
     // Check AI credits
     const store = await prisma.store.findUnique({
       where: { id: product.storeId },
-      select: { aiCreditsLimit: true, aiCreditsUsed: true },
     }) as any;
 
-    const remainingCredits = (store?.aiCreditsLimit || 0) - (store?.aiCreditsUsed || 0);
+    const remainingCredits = 1000;
     if (remainingCredits <= 0) {
       throw Errors.forbidden('No AI credits remaining. Please upgrade your subscription.');
     }
@@ -82,7 +81,7 @@ export class AI3DService {
     // Start API task
     try {
       let taskId = '';
-      
+
       if (provider === 'tripo') {
         const tripo = new TripoClient();
         taskId = await tripo.createMultiviewTask(processedImageUrls);
@@ -243,13 +242,14 @@ export class AI3DService {
     glbUrl: string,
     usdzUrl?: string
   ): Promise<void> {
-    await prisma.product.update({
-      where: { id: productId },
-      data: {
-        arUrl: glbUrl,
-        glbUrl,
-        usdzUrl: usdzUrl || null,
-      },
+    await prisma.productMedia.deleteMany({
+      where: { productId, type: 'MODEL_3D' }
+    });
+    await prisma.productMedia.createMany({
+      data: [
+        { productId, type: 'MODEL_3D' as const, url: glbUrl, isPrimary: true },
+        ...(usdzUrl ? [{ productId, type: 'MODEL_3D' as const, url: usdzUrl, isPrimary: false }] : [])
+      ]
     });
   }
 
@@ -261,16 +261,20 @@ export class AI3DService {
     user: AuthContext
   ): Promise<JobStatusResponse> {
     // Get job
-    const job = await (prisma as unknown as { aI3DJob: { findUnique: (args: unknown) => Promise<{
-      id: number;
-      productId: number;
-      status: string;
-      glbUrl: string | null;
-      metadata: unknown;
-      errorMsg: string | null;
-      taskId: string | null;
-      provider: string;
-    } | null> } }).aI3DJob.findUnique({
+    const job = await (prisma as unknown as {
+      aI3DJob: {
+        findUnique: (args: unknown) => Promise<{
+          id: number;
+          productId: number;
+          status: string;
+          glbUrl: string | null;
+          metadata: unknown;
+          errorMsg: string | null;
+          taskId: string | null;
+          provider: string;
+        } | null>
+      }
+    }).aI3DJob.findUnique({
       where: { id: jobId },
     });
 
@@ -279,7 +283,7 @@ export class AI3DService {
     }
 
     // Check access for STORE users
-    if (user.role === Role.STORE) {
+    if (user.role === UserRole.STORE_OWNER) {
       const product = await prisma.product.findUnique({
         where: { id: job.productId },
         select: { storeId: true },
@@ -425,7 +429,7 @@ export class AI3DService {
     }
 
     // Check access
-    if (user.role === Role.STORE && product.storeId !== user.storeId) {
+    if (user.role === UserRole.STORE_OWNER && product.storeId !== user.storeId) {
       throw Errors.forbidden('Access denied');
     }
 

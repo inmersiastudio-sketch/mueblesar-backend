@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { authController } from '../controllers/AuthController.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { requireRole } from '../lib/auth.js';
@@ -48,7 +48,7 @@ router.post('/reset-password', asyncHandler(authController.resetPassword.bind(au
 
 // ── Debug Route ───────────────────────────────────────────────
 
-router.get('/whoami', requireRole([Role.ADMIN, Role.STORE]), (_req, res) => {
+router.get('/whoami', requireRole([UserRole.SUPER_ADMIN, UserRole.STORE_OWNER]), (_req, res) => {
   // This route requires auth middleware to set req.user
   // Return user info from the middleware
   res.json({ message: 'Use /me endpoint for user info' });

@@ -8,26 +8,26 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ProductCard } from "../components/products/ProductCard";
 import { fetchProducts, fetchStores } from "../lib/api";
-import type { Product, Store } from "@/types";
+import type { Product, Store, ProductListItem } from "@/types";
 import { VisualCategoryFilter } from "../components/filters/VisualCategoryFilter";
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string }> }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const category = params.category;
-  
+
   // Also consider showing result if category is selected, even without query text
   const hasQuery = query.length > 0 || !!category;
 
   const [productsRes, storesRes] = hasQuery
     ? await Promise.all([
-        fetchProducts({ q: query, category }),
-        fetchStores({ q: query }), // Stores might not filter by product category easily unless improved backend
-      ])
+      fetchProducts({ q: query, category }),
+      fetchStores({ q: query }), // Stores might not filter by product category easily unless improved backend
+    ])
     : [
-        { items: [], total: 0 },
-        { items: [], total: 0 },
-      ];
+      { items: [], total: 0 },
+      { items: [], total: 0 },
+    ];
 
   const products = productsRes.items;
   const stores = storesRes.items;
@@ -40,16 +40,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">Catálogo</p>
             <h1 className="text-3xl font-bold text-slate-900">Encontrá tu mueble ideal</h1>
           </div>
-          
+
           {/* Visual Category Filter (Blueprint Style) */}
           <VisualCategoryFilter />
 
           <form className="flex max-w-xl gap-3" method="get">
             <Input name="q" defaultValue={query} placeholder="Ej: sofá gris, mesa roble" />
-            
+
             {/* Preserve category during text search if desired, or simpler: reset category on new text search */}
             {category && <input type="hidden" name="category" value={category} />}
-            
+
             <Button type="submit" className="shrink-0">
               Buscar
             </Button>
@@ -76,8 +76,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                   </div>
                 )}
 
-                {products.map((product: Product) => (
-                  <ProductCard key={product.id} product={product} />
+                {products.map((product: any) => (
+                  <ProductCard key={product.id} product={product as ProductListItem} />
                 ))}
               </div>
             </section>
